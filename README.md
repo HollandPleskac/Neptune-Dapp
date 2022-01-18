@@ -68,3 +68,23 @@ Repositories:
 ---------TBA--------------
 
 
+# Dapp Tech Stack
+
+Frontend:
+
+1) React
+2) Javascript/Typescript
+
+Backend:
+
+1) Rust
+- Smart contracts
+
+2) Javascript/Typescript
+- Client side code
+- Unit testing in chai/mocha
+
+3) Express + Mongo + Node
+- REST API for SDK
+
+
