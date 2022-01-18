@@ -6,6 +6,7 @@ use helpers::*;
 use solana_program_test::*;
 use solana_sdk::{
     instruction::InstructionError,
+    pubkey::Pubkey,
     signature::Signer,
     transaction::{Transaction, TransactionError},
 };
@@ -22,7 +23,7 @@ async fn test_success() {
     );
 
     // limit to track compute unit increase
-    test.set_compute_max_units(20_000);
+    test.set_bpf_compute_max_units(17_000);
 
     let (mut banks_client, payer, _recent_blockhash) = test.start().await;
 
@@ -49,6 +50,7 @@ async fn test_already_initialized() {
             existing_market.quote_currency,
             existing_market.pubkey,
             existing_market.oracle_program_id,
+            existing_market.switchboard_oracle_program_id,
         )],
         Some(&payer.pubkey()),
     );

@@ -9,7 +9,6 @@ import {
   createMint,
   createAccount,
   createAssociatedAccount,
-  disableMintAuthority,
   transfer,
   transferChecked,
   transferCheckedAssociated,
@@ -68,8 +67,6 @@ async function main() {
   await multisig();
   console.log('Run test: nativeToken');
   await nativeToken();
-  console.log('Run test: disable mint authority');
-  await disableMintAuthority();
   console.log('Success\n');
 }
 

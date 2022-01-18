@@ -26,6 +26,7 @@ export const NAME_PROGRAM_ID = new PublicKey(
   'namesLPneVptA9Z5rqUDD9tMTWEJwofgaYwp8cawRkX'
 );
 export const HASH_PREFIX = 'SPL Name Service';
+export const VERIFICATION_AUTHORITY_OFFSET = 64;
 
 ////////////////////////////////////////////////////////////
 /**
@@ -57,6 +58,8 @@ export async function createNameRegistry(
     nameClass,
     parentName
   );
+
+  space += 96; // Accounting for the Registry State Header
 
   const balance = lamports
     ? lamports
@@ -123,8 +126,7 @@ export async function updateNameRegistryData(
     nameAccountKey,
     new Numberu32(offset),
     input_data,
-    signer,
-    nameParent
+    signer
   );
 
   return updateInstr;
@@ -169,8 +171,7 @@ export async function transferNameOwnership(
     nameAccountKey,
     newOwner,
     curentNameOwner,
-    nameClass,
-    nameParent
+    nameClass
   );
 
   return transferInstr;

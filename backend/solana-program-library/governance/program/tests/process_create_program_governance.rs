@@ -3,13 +3,11 @@ mod program_test;
 
 use solana_program_test::*;
 
-use program_test::*;
+use program_test::{tools::ProgramInstructionError, *};
 use solana_sdk::signature::{Keypair, Signer};
 use spl_governance::{
     error::GovernanceError, tools::bpf_loader_upgradeable::get_program_upgrade_authority,
 };
-use spl_governance_test_sdk::tools::ProgramInstructionError;
-use spl_governance_tools::error::GovernanceToolsError;
 
 #[tokio::test]
 async fn test_create_program_governance() {
@@ -19,18 +17,9 @@ async fn test_create_program_governance() {
     let realm_cookie = governance_test.with_realm().await;
     let governed_program_cookie = governance_test.with_governed_program().await;
 
-    let token_owner_record_cookie = governance_test
-        .with_community_token_deposit(&realm_cookie)
-        .await
-        .unwrap();
-
     // Act
     let program_governance_cookie = governance_test
-        .with_program_governance(
-            &realm_cookie,
-            &governed_program_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_program_governance(&realm_cookie, &governed_program_cookie)
         .await
         .unwrap();
 
@@ -61,20 +50,11 @@ async fn test_create_program_governance_without_transferring_upgrade_authority()
     let realm_cookie = governance_test.with_realm().await;
     let mut governed_program_cookie = governance_test.with_governed_program().await;
 
-    let token_owner_record_cookie = governance_test
-        .with_community_token_deposit(&realm_cookie)
-        .await
-        .unwrap();
-
     governed_program_cookie.transfer_upgrade_authority = false;
 
     // Act
     let program_governance_cookie = governance_test
-        .with_program_governance(
-            &realm_cookie,
-            &governed_program_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_program_governance(&realm_cookie, &governed_program_cookie)
         .await
         .unwrap();
 
@@ -109,21 +89,12 @@ async fn test_create_program_governance_without_transferring_upgrade_authority_w
     let realm_cookie = governance_test.with_realm().await;
     let mut governed_program_cookie = governance_test.with_governed_program().await;
 
-    let token_owner_record_cookie = governance_test
-        .with_community_token_deposit(&realm_cookie)
-        .await
-        .unwrap();
-
     governed_program_cookie.transfer_upgrade_authority = false;
     governed_program_cookie.upgrade_authority = Keypair::new();
 
     // Act
     let err = governance_test
-        .with_program_governance(
-            &realm_cookie,
-            &governed_program_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_program_governance(&realm_cookie, &governed_program_cookie)
         .await
         .err()
         .unwrap();
@@ -141,11 +112,6 @@ async fn test_create_program_governance_without_transferring_upgrade_authority_w
     let realm_cookie = governance_test.with_realm().await;
     let mut governed_program_cookie = governance_test.with_governed_program().await;
 
-    let token_owner_record_cookie = governance_test
-        .with_community_token_deposit(&realm_cookie)
-        .await
-        .unwrap();
-
     governed_program_cookie.transfer_upgrade_authority = false;
 
     // Act
@@ -153,11 +119,10 @@ async fn test_create_program_governance_without_transferring_upgrade_authority_w
         .with_program_governance_using_instruction(
             &realm_cookie,
             &governed_program_cookie,
-            &token_owner_record_cookie,
             |i| {
-                i.accounts[4].is_signer = false; // governed_program_upgrade_authority
+                i.accounts[3].is_signer = false; // governed_program_upgrade_authority
             },
-            Some(&[&token_owner_record_cookie.token_owner]),
+            Some(&[]),
         )
         .await
         .err()
@@ -175,20 +140,11 @@ async fn test_create_program_governance_with_incorrect_upgrade_authority_error()
     let realm_cookie = governance_test.with_realm().await;
     let mut governed_program_cookie = governance_test.with_governed_program().await;
 
-    let token_owner_record_cookie = governance_test
-        .with_community_token_deposit(&realm_cookie)
-        .await
-        .unwrap();
-
     governed_program_cookie.upgrade_authority = Keypair::new();
 
     // Act
     let err = governance_test
-        .with_program_governance(
-            &realm_cookie,
-            &governed_program_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_program_governance(&realm_cookie, &governed_program_cookie)
         .await
         .err()
         .unwrap();
@@ -205,17 +161,8 @@ async fn test_create_program_governance_with_invalid_realm_error() {
     let mut realm_cookie = governance_test.with_realm().await;
     let governed_program_cookie = governance_test.with_governed_program().await;
 
-    let token_owner_record_cookie = governance_test
-        .with_community_token_deposit(&realm_cookie)
-        .await
-        .unwrap();
-
     let program_governance_cookie = governance_test
-        .with_program_governance(
-            &realm_cookie,
-            &governed_program_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_program_governance(&realm_cookie, &governed_program_cookie)
         .await
         .unwrap();
 
@@ -223,15 +170,11 @@ async fn test_create_program_governance_with_invalid_realm_error() {
 
     // Act
     let err = governance_test
-        .with_program_governance(
-            &realm_cookie,
-            &governed_program_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_program_governance(&realm_cookie, &governed_program_cookie)
         .await
         .err()
         .unwrap();
 
     // Assert
-    assert_eq!(err, GovernanceToolsError::InvalidAccountType.into());
+    assert_eq!(err, GovernanceError::InvalidAccountType.into());
 }

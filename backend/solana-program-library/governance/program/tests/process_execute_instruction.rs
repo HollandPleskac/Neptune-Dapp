@@ -5,15 +5,12 @@ mod program_test;
 use solana_program::{
     instruction::{AccountMeta, Instruction},
     program_error::ProgramError,
-    sysvar::clock,
+    sysvar::{clock, fees},
 };
 use solana_program_test::tokio;
 
 use program_test::*;
-use spl_governance::{
-    error::GovernanceError,
-    state::enums::{InstructionExecutionStatus, ProposalState},
-};
+use spl_governance::{error::GovernanceError, instruction::Vote, state::enums::ProposalState};
 
 #[tokio::test]
 async fn test_execute_mint_instruction() {
@@ -23,19 +20,14 @@ async fn test_execute_mint_instruction() {
     let realm_cookie = governance_test.with_realm().await;
     let governed_mint_cookie = governance_test.with_governed_mint().await;
 
-    let token_owner_record_cookie = governance_test
-        .with_community_token_deposit(&realm_cookie)
+    let mut mint_governance_cookie = governance_test
+        .with_mint_governance(&realm_cookie, &governed_mint_cookie)
         .await
         .unwrap();
 
-    let mut mint_governance_cookie = governance_test
-        .with_mint_governance(
-            &realm_cookie,
-            &governed_mint_cookie,
-            &token_owner_record_cookie,
-        )
-        .await
-        .unwrap();
+    let token_owner_record_cookie = governance_test
+        .with_community_token_deposit(&realm_cookie)
+        .await;
 
     let mut proposal_cookie = governance_test
         .with_proposal(&token_owner_record_cookie, &mut mint_governance_cookie)
@@ -52,7 +44,6 @@ async fn test_execute_mint_instruction() {
             &governed_mint_cookie,
             &mut proposal_cookie,
             &token_owner_record_cookie,
-            0,
             None,
         )
         .await
@@ -64,7 +55,7 @@ async fn test_execute_mint_instruction() {
         .unwrap();
 
     governance_test
-        .with_cast_vote(&proposal_cookie, &token_owner_record_cookie, YesNoVote::Yes)
+        .with_cast_vote(&proposal_cookie, &token_owner_record_cookie, Vote::Yes)
         .await
         .unwrap();
 
@@ -73,7 +64,7 @@ async fn test_execute_mint_instruction() {
         .advance_clock_by_min_timespan(proposal_instruction_cookie.account.hold_up_time as u64)
         .await;
 
-    let clock = governance_test.bench.get_clock().await;
+    let clock = governance_test.get_clock().await;
 
     // Act
     governance_test
@@ -87,9 +78,7 @@ async fn test_execute_mint_instruction() {
         .get_proposal_account(&proposal_cookie.address)
         .await;
 
-    let yes_option = proposal_account.options.first().unwrap();
-
-    assert_eq!(1, yes_option.instructions_executed_count);
+    assert_eq!(1, proposal_account.instructions_executed_count);
     assert_eq!(ProposalState::Completed, proposal_account.state);
     assert_eq!(Some(clock.unix_timestamp), proposal_account.closed_at);
     assert_eq!(Some(clock.unix_timestamp), proposal_account.executing_at);
@@ -101,11 +90,6 @@ async fn test_execute_mint_instruction() {
     assert_eq!(
         Some(clock.unix_timestamp),
         proposal_instruction_account.executed_at
-    );
-
-    assert_eq!(
-        InstructionExecutionStatus::Success,
-        proposal_instruction_account.execution_status
     );
 
     let instruction_token_account = governance_test
@@ -123,19 +107,14 @@ async fn test_execute_transfer_instruction() {
     let realm_cookie = governance_test.with_realm().await;
     let governed_token_cookie = governance_test.with_governed_token().await;
 
-    let token_owner_record_cookie = governance_test
-        .with_community_token_deposit(&realm_cookie)
+    let mut token_governance_cookie = governance_test
+        .with_token_governance(&realm_cookie, &governed_token_cookie)
         .await
         .unwrap();
 
-    let mut token_governance_cookie = governance_test
-        .with_token_governance(
-            &realm_cookie,
-            &governed_token_cookie,
-            &token_owner_record_cookie,
-        )
-        .await
-        .unwrap();
+    let token_owner_record_cookie = governance_test
+        .with_community_token_deposit(&realm_cookie)
+        .await;
 
     let mut proposal_cookie = governance_test
         .with_proposal(&token_owner_record_cookie, &mut token_governance_cookie)
@@ -163,7 +142,7 @@ async fn test_execute_transfer_instruction() {
         .unwrap();
 
     governance_test
-        .with_cast_vote(&proposal_cookie, &token_owner_record_cookie, YesNoVote::Yes)
+        .with_cast_vote(&proposal_cookie, &token_owner_record_cookie, Vote::Yes)
         .await
         .unwrap();
 
@@ -172,7 +151,7 @@ async fn test_execute_transfer_instruction() {
         .advance_clock_by_min_timespan(proposal_instruction_cookie.account.hold_up_time as u64)
         .await;
 
-    let clock = governance_test.bench.get_clock().await;
+    let clock = governance_test.get_clock().await;
 
     // Act
     governance_test
@@ -186,9 +165,7 @@ async fn test_execute_transfer_instruction() {
         .get_proposal_account(&proposal_cookie.address)
         .await;
 
-    let yes_option = proposal_account.options.first().unwrap();
-
-    assert_eq!(1, yes_option.instructions_executed_count);
+    assert_eq!(1, proposal_account.instructions_executed_count);
     assert_eq!(ProposalState::Completed, proposal_account.state);
     assert_eq!(Some(clock.unix_timestamp), proposal_account.closed_at);
     assert_eq!(Some(clock.unix_timestamp), proposal_account.executing_at);
@@ -200,11 +177,6 @@ async fn test_execute_transfer_instruction() {
     assert_eq!(
         Some(clock.unix_timestamp),
         proposal_instruction_account.executed_at
-    );
-
-    assert_eq!(
-        InstructionExecutionStatus::Success,
-        proposal_instruction_account.execution_status
     );
 
     let instruction_token_account = governance_test
@@ -222,19 +194,14 @@ async fn test_execute_upgrade_program_instruction() {
     let realm_cookie = governance_test.with_realm().await;
     let governed_program_cookie = governance_test.with_governed_program().await;
 
-    let token_owner_record_cookie = governance_test
-        .with_community_token_deposit(&realm_cookie)
+    let mut program_governance_cookie = governance_test
+        .with_program_governance(&realm_cookie, &governed_program_cookie)
         .await
         .unwrap();
 
-    let mut program_governance_cookie = governance_test
-        .with_program_governance(
-            &realm_cookie,
-            &governed_program_cookie,
-            &token_owner_record_cookie,
-        )
-        .await
-        .unwrap();
+    let token_owner_record_cookie = governance_test
+        .with_community_token_deposit(&realm_cookie)
+        .await;
 
     let mut proposal_cookie = governance_test
         .with_proposal(&token_owner_record_cookie, &mut program_governance_cookie)
@@ -261,7 +228,7 @@ async fn test_execute_upgrade_program_instruction() {
         .unwrap();
 
     governance_test
-        .with_cast_vote(&proposal_cookie, &token_owner_record_cookie, YesNoVote::Yes)
+        .with_cast_vote(&proposal_cookie, &token_owner_record_cookie, Vote::Yes)
         .await
         .unwrap();
 
@@ -274,11 +241,14 @@ async fn test_execute_upgrade_program_instruction() {
     let governed_program_instruction = Instruction::new_with_bytes(
         governed_program_cookie.address,
         &[0],
-        vec![AccountMeta::new(clock::id(), false)],
+        vec![
+            AccountMeta::new(governed_program_cookie.address, false),
+            AccountMeta::new(clock::id(), false),
+            AccountMeta::new(fees::id(), false),
+        ],
     );
 
     let err = governance_test
-        .bench
         .process_transaction(&[governed_program_instruction.clone()], None)
         .await
         .err()
@@ -287,7 +257,7 @@ async fn test_execute_upgrade_program_instruction() {
     // solana_bpf_rust_upgradable returns CustomError == 42
     assert_eq!(ProgramError::Custom(42), err);
 
-    let clock = governance_test.bench.get_clock().await;
+    let clock = governance_test.get_clock().await;
 
     // Act
     governance_test
@@ -301,9 +271,7 @@ async fn test_execute_upgrade_program_instruction() {
         .get_proposal_account(&proposal_cookie.address)
         .await;
 
-    let yes_option = proposal_account.options.first().unwrap();
-
-    assert_eq!(1, yes_option.instructions_executed_count);
+    assert_eq!(1, proposal_account.instructions_executed_count);
     assert_eq!(ProposalState::Completed, proposal_account.state);
     assert_eq!(Some(clock.unix_timestamp), proposal_account.closed_at);
     assert_eq!(Some(clock.unix_timestamp), proposal_account.executing_at);
@@ -317,17 +285,11 @@ async fn test_execute_upgrade_program_instruction() {
         proposal_instruction_account.executed_at
     );
 
-    assert_eq!(
-        InstructionExecutionStatus::Success,
-        proposal_instruction_account.execution_status
-    );
-
     // Assert we can invoke the governed program after upgrade
 
     governance_test.advance_clock().await;
 
     let err = governance_test
-        .bench
         .process_transaction(&[governed_program_instruction.clone()], None)
         .await
         .err()
@@ -340,7 +302,6 @@ async fn test_execute_upgrade_program_instruction() {
 }
 
 #[tokio::test]
-#[ignore]
 async fn test_execute_instruction_with_invalid_state_errors() {
     // Arrange
     let mut governance_test = GovernanceProgramTest::start_new().await;
@@ -348,19 +309,14 @@ async fn test_execute_instruction_with_invalid_state_errors() {
     let realm_cookie = governance_test.with_realm().await;
     let governed_mint_cookie = governance_test.with_governed_mint().await;
 
-    let token_owner_record_cookie = governance_test
-        .with_community_token_deposit(&realm_cookie)
+    let mut mint_governance_cookie = governance_test
+        .with_mint_governance(&realm_cookie, &governed_mint_cookie)
         .await
         .unwrap();
 
-    let mut mint_governance_cookie = governance_test
-        .with_mint_governance(
-            &realm_cookie,
-            &governed_mint_cookie,
-            &token_owner_record_cookie,
-        )
-        .await
-        .unwrap();
+    let token_owner_record_cookie = governance_test
+        .with_community_token_deposit(&realm_cookie)
+        .await;
 
     let mut proposal_cookie = governance_test
         .with_proposal(&token_owner_record_cookie, &mut mint_governance_cookie)
@@ -382,7 +338,6 @@ async fn test_execute_instruction_with_invalid_state_errors() {
             &governed_mint_cookie,
             &mut proposal_cookie,
             &token_owner_record_cookie,
-            0,
             None,
         )
         .await
@@ -447,7 +402,7 @@ async fn test_execute_instruction_with_invalid_state_errors() {
     // Arrange
 
     governance_test
-        .with_cast_vote(&proposal_cookie, &token_owner_record_cookie, YesNoVote::Yes)
+        .with_cast_vote(&proposal_cookie, &token_owner_record_cookie, Vote::Yes)
         .await
         .unwrap();
 
@@ -512,19 +467,14 @@ async fn test_execute_instruction_for_other_proposal_error() {
     let realm_cookie = governance_test.with_realm().await;
     let governed_mint_cookie = governance_test.with_governed_mint().await;
 
-    let token_owner_record_cookie = governance_test
-        .with_community_token_deposit(&realm_cookie)
+    let mut mint_governance_cookie = governance_test
+        .with_mint_governance(&realm_cookie, &governed_mint_cookie)
         .await
         .unwrap();
 
-    let mut mint_governance_cookie = governance_test
-        .with_mint_governance(
-            &realm_cookie,
-            &governed_mint_cookie,
-            &token_owner_record_cookie,
-        )
-        .await
-        .unwrap();
+    let token_owner_record_cookie = governance_test
+        .with_community_token_deposit(&realm_cookie)
+        .await;
 
     let mut proposal_cookie = governance_test
         .with_proposal(&token_owner_record_cookie, &mut mint_governance_cookie)
@@ -541,7 +491,6 @@ async fn test_execute_instruction_for_other_proposal_error() {
             &governed_mint_cookie,
             &mut proposal_cookie,
             &token_owner_record_cookie,
-            0,
             None,
         )
         .await
@@ -553,7 +502,7 @@ async fn test_execute_instruction_for_other_proposal_error() {
         .unwrap();
 
     governance_test
-        .with_cast_vote(&proposal_cookie, &token_owner_record_cookie, YesNoVote::Yes)
+        .with_cast_vote(&proposal_cookie, &token_owner_record_cookie, Vote::Yes)
         .await
         .unwrap();
 
@@ -563,17 +512,10 @@ async fn test_execute_instruction_for_other_proposal_error() {
         .advance_clock_by_min_timespan(proposal_instruction_cookie.account.hold_up_time as u64)
         .await;
 
-    let token_owner_record_cookie2 = governance_test
-        .with_community_token_deposit(&realm_cookie)
-        .await
-        .unwrap();
-
     let proposal_cookie2 = governance_test
-        .with_proposal(&token_owner_record_cookie2, &mut mint_governance_cookie)
+        .with_proposal(&token_owner_record_cookie, &mut mint_governance_cookie)
         .await
         .unwrap();
-
-    governance_test.advance_clock().await;
 
     // Act
     let err = governance_test
@@ -597,19 +539,14 @@ async fn test_execute_mint_instruction_twice_error() {
     let realm_cookie = governance_test.with_realm().await;
     let governed_mint_cookie = governance_test.with_governed_mint().await;
 
-    let token_owner_record_cookie = governance_test
-        .with_community_token_deposit(&realm_cookie)
+    let mut mint_governance_cookie = governance_test
+        .with_mint_governance(&realm_cookie, &governed_mint_cookie)
         .await
         .unwrap();
 
-    let mut mint_governance_cookie = governance_test
-        .with_mint_governance(
-            &realm_cookie,
-            &governed_mint_cookie,
-            &token_owner_record_cookie,
-        )
-        .await
-        .unwrap();
+    let token_owner_record_cookie = governance_test
+        .with_community_token_deposit(&realm_cookie)
+        .await;
 
     let mut proposal_cookie = governance_test
         .with_proposal(&token_owner_record_cookie, &mut mint_governance_cookie)
@@ -626,14 +563,13 @@ async fn test_execute_mint_instruction_twice_error() {
             &governed_mint_cookie,
             &mut proposal_cookie,
             &token_owner_record_cookie,
-            0,
             None,
         )
         .await
         .unwrap();
 
     governance_test
-        .with_nop_instruction(&mut proposal_cookie, &token_owner_record_cookie, 0, None)
+        .with_instruction(&mut proposal_cookie, &token_owner_record_cookie, None)
         .await
         .unwrap();
 
@@ -643,7 +579,7 @@ async fn test_execute_mint_instruction_twice_error() {
         .unwrap();
 
     governance_test
-        .with_cast_vote(&proposal_cookie, &token_owner_record_cookie, YesNoVote::Yes)
+        .with_cast_vote(&proposal_cookie, &token_owner_record_cookie, Vote::Yes)
         .await
         .unwrap();
 

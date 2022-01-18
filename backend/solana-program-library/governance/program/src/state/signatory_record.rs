@@ -5,9 +5,12 @@ use solana_program::{
     account_info::AccountInfo, program_error::ProgramError, program_pack::IsInitialized,
     pubkey::Pubkey,
 };
-use spl_governance_tools::account::{get_account_data, AccountMaxSize};
 
-use crate::{error::GovernanceError, PROGRAM_AUTHORITY_SEED};
+use crate::{
+    error::GovernanceError,
+    tools::account::{get_account_data, AccountMaxSize},
+    PROGRAM_AUTHORITY_SEED,
+};
 
 use crate::state::enums::GovernanceAccountType;
 
@@ -17,13 +20,10 @@ use crate::state::enums::GovernanceAccountType;
 pub struct SignatoryRecord {
     /// Governance account type
     pub account_type: GovernanceAccountType,
-
     /// Proposal the signatory is assigned for
     pub proposal: Pubkey,
-
     /// The account of the signatory who can sign off the proposal
     pub signatory: Pubkey,
-
     /// Indicates whether the signatory signed off the proposal
     pub signed_off: bool,
 }
@@ -90,7 +90,7 @@ pub fn get_signatory_record_data(
     program_id: &Pubkey,
     signatory_record_info: &AccountInfo,
 ) -> Result<SignatoryRecord, ProgramError> {
-    get_account_data::<SignatoryRecord>(program_id, signatory_record_info)
+    get_account_data::<SignatoryRecord>(signatory_record_info, program_id)
 }
 
 /// Deserializes SignatoryRecord  and validates its PDA

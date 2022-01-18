@@ -13,6 +13,7 @@ use {
     solana_sdk::{
         signature::{Keypair, Signer},
         transaction::{Transaction, TransactionError},
+        transport,
     },
     spl_record::{
         error::RecordError,
@@ -31,7 +32,7 @@ async fn initialize_storage_account(
     authority: &Keypair,
     account: &Keypair,
     data: Data,
-) {
+) -> transport::Result<()> {
     let transaction = Transaction::new_signed_with_payer(
         &[
             system_instruction::create_account(
@@ -53,11 +54,7 @@ async fn initialize_storage_account(
         &[&context.payer, account, authority],
         context.last_blockhash,
     );
-    context
-        .banks_client
-        .process_transaction(transaction)
-        .await
-        .unwrap();
+    context.banks_client.process_transaction(transaction).await
 }
 
 #[tokio::test]
@@ -69,7 +66,9 @@ async fn initialize_success() {
     let data = Data {
         bytes: [111u8; Data::DATA_SIZE],
     };
-    initialize_storage_account(&mut context, &authority, &account, data.clone()).await;
+    initialize_storage_account(&mut context, &authority, &account, data.clone())
+        .await
+        .unwrap();
     let account_data = context
         .banks_client
         .get_account_data_with_borsh::<RecordData>(account.pubkey())
@@ -132,7 +131,9 @@ async fn initialize_twice_fail() {
     let data = Data {
         bytes: [111u8; Data::DATA_SIZE],
     };
-    initialize_storage_account(&mut context, &authority, &account, data).await;
+    initialize_storage_account(&mut context, &authority, &account, data)
+        .await
+        .unwrap();
     let transaction = Transaction::new_signed_with_payer(
         &[instruction::initialize(
             &account.pubkey(),
@@ -162,7 +163,9 @@ async fn write_success() {
     let data = Data {
         bytes: [222u8; Data::DATA_SIZE],
     };
-    initialize_storage_account(&mut context, &authority, &account, data).await;
+    initialize_storage_account(&mut context, &authority, &account, data)
+        .await
+        .unwrap();
 
     let new_data = Data {
         bytes: [200u8; Data::DATA_SIZE],
@@ -203,7 +206,9 @@ async fn write_fail_wrong_authority() {
     let data = Data {
         bytes: [222u8; Data::DATA_SIZE],
     };
-    initialize_storage_account(&mut context, &authority, &account, data).await;
+    initialize_storage_account(&mut context, &authority, &account, data)
+        .await
+        .unwrap();
 
     let new_data = Data {
         bytes: [200u8; Data::DATA_SIZE],
@@ -243,7 +248,9 @@ async fn write_fail_unsigned() {
     let data = Data {
         bytes: [222u8; Data::DATA_SIZE],
     };
-    initialize_storage_account(&mut context, &authority, &account, data).await;
+    initialize_storage_account(&mut context, &authority, &account, data)
+        .await
+        .unwrap();
 
     let data = Data {
         bytes: [200u8; Data::DATA_SIZE],
@@ -283,7 +290,9 @@ async fn close_account_success() {
     let data = Data {
         bytes: [222u8; Data::DATA_SIZE],
     };
-    initialize_storage_account(&mut context, &authority, &account, data).await;
+    initialize_storage_account(&mut context, &authority, &account, data)
+        .await
+        .unwrap();
     let recipient = Pubkey::new_unique();
 
     let transaction = Transaction::new_signed_with_payer(
@@ -323,7 +332,9 @@ async fn close_account_fail_wrong_authority() {
     let data = Data {
         bytes: [222u8; Data::DATA_SIZE],
     };
-    initialize_storage_account(&mut context, &authority, &account, data).await;
+    initialize_storage_account(&mut context, &authority, &account, data)
+        .await
+        .unwrap();
 
     let wrong_authority = Keypair::new();
     let transaction = Transaction::new_signed_with_payer(
@@ -363,7 +374,9 @@ async fn close_account_fail_unsigned() {
     let data = Data {
         bytes: [222u8; Data::DATA_SIZE],
     };
-    initialize_storage_account(&mut context, &authority, &account, data).await;
+    initialize_storage_account(&mut context, &authority, &account, data)
+        .await
+        .unwrap();
 
     let transaction = Transaction::new_signed_with_payer(
         &[Instruction::new_with_borsh(
@@ -399,7 +412,9 @@ async fn set_authority_success() {
     let data = Data {
         bytes: [222u8; Data::DATA_SIZE],
     };
-    initialize_storage_account(&mut context, &authority, &account, data).await;
+    initialize_storage_account(&mut context, &authority, &account, data)
+        .await
+        .unwrap();
     let new_authority = Keypair::new();
 
     let transaction = Transaction::new_signed_with_payer(
@@ -464,7 +479,9 @@ async fn set_authority_fail_wrong_authority() {
     let data = Data {
         bytes: [222u8; Data::DATA_SIZE],
     };
-    initialize_storage_account(&mut context, &authority, &account, data).await;
+    initialize_storage_account(&mut context, &authority, &account, data)
+        .await
+        .unwrap();
 
     let wrong_authority = Keypair::new();
     let transaction = Transaction::new_signed_with_payer(
@@ -504,7 +521,9 @@ async fn set_authority_fail_unsigned() {
     let data = Data {
         bytes: [222u8; Data::DATA_SIZE],
     };
-    initialize_storage_account(&mut context, &authority, &account, data).await;
+    initialize_storage_account(&mut context, &authority, &account, data)
+        .await
+        .unwrap();
 
     let transaction = Transaction::new_signed_with_payer(
         &[Instruction::new_with_borsh(

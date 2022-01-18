@@ -5,6 +5,7 @@ mod helpers;
 use helpers::*;
 use solana_program_test::*;
 use solana_sdk::{
+    pubkey::Pubkey,
     signature::{Keypair, Signer},
     transaction::Transaction,
 };
@@ -24,7 +25,7 @@ async fn test_success() {
     );
 
     // limit to track compute unit increase
-    test.set_compute_max_units(30_000);
+    test.set_bpf_compute_max_units(16_000);
 
     const SOL_RESERVE_LIQUIDITY_LAMPORTS: u64 = 100 * LAMPORTS_TO_SOL;
     const USDC_RESERVE_LIQUIDITY_FRACTIONAL: u64 = 100 * FRACTIONAL_TO_USDC;
@@ -33,7 +34,7 @@ async fn test_success() {
     let user_accounts_owner = Keypair::new();
     let lending_market = add_lending_market(&mut test);
 
-    let mut reserve_config = TEST_RESERVE_CONFIG;
+    let mut reserve_config = test_reserve_config();
     reserve_config.loan_to_value_ratio = 80;
 
     // Configure reserve to a fixed borrow rate of 1%
@@ -92,12 +93,14 @@ async fn test_success() {
             refresh_reserve(
                 spl_token_lending::id(),
                 usdc_test_reserve.pubkey,
-                usdc_oracle.price_pubkey,
+                usdc_oracle.pyth_price_pubkey,
+                usdc_oracle.switchboard_feed_pubkey,
             ),
             refresh_reserve(
                 spl_token_lending::id(),
                 sol_test_reserve.pubkey,
-                sol_oracle.price_pubkey,
+                sol_oracle.pyth_price_pubkey,
+                sol_oracle.switchboard_feed_pubkey,
             ),
         ],
         Some(&payer.pubkey()),

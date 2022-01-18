@@ -45,7 +45,8 @@ jobs:
 
       - uses: actions/cache@v2
         with:
-          path: ~/.cache/solana
+          path: |
+            ~/.cache
           key: solana-${{ env.SOLANA_VERSION }}
 
       - name: Install dependencies

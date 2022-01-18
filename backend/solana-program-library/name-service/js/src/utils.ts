@@ -89,7 +89,9 @@ export const signAndSendTransactionInstructions = async (
   tx.feePayer = feePayer.publicKey;
   signers.push(feePayer);
   tx.add(...txInstructions);
-  return await connection.sendTransaction(tx, signers);
+  return await connection.sendTransaction(tx, signers, {
+    preflightCommitment: 'single',
+  });
 };
 
 export async function getHashedName(name: string): Promise<Buffer> {
@@ -127,7 +129,7 @@ export async function getNameOwner(
 ): Promise<NameRegistryState> {
   const nameAccount = await connection.getAccountInfo(nameAccountKey);
   if (!nameAccount) {
-    throw new Error('Unable to find the given account.');
+    throw 'Unable to find the given account.';
   }
   return NameRegistryState.retrieve(connection, nameAccountKey);
 }

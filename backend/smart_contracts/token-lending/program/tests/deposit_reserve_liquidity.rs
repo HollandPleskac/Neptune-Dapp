@@ -4,7 +4,7 @@ mod helpers;
 
 use helpers::*;
 use solana_program_test::*;
-use solana_sdk::signature::Keypair;
+use solana_sdk::{pubkey::Pubkey, signature::Keypair};
 use spl_token_lending::processor::process_instruction;
 
 #[tokio::test]
@@ -16,7 +16,7 @@ async fn test_success() {
     );
 
     // limit to track compute unit increase
-    test.set_compute_max_units(50_000);
+    test.set_bpf_compute_max_units(30_000);
 
     let user_accounts_owner = Keypair::new();
     let lending_market = add_lending_market(&mut test);
@@ -33,7 +33,7 @@ async fn test_success() {
             liquidity_amount: 10_000 * FRACTIONAL_TO_USDC,
             liquidity_mint_decimals: usdc_mint.decimals,
             liquidity_mint_pubkey: usdc_mint.pubkey,
-            config: TEST_RESERVE_CONFIG,
+            config: test_reserve_config(),
             mark_fresh: true,
             ..AddReserveArgs::default()
         },

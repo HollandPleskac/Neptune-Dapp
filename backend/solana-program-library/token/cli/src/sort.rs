@@ -1,6 +1,8 @@
-use crate::{get_associated_token_address, output::CliTokenAccount};
-use serde::{Deserialize, Serialize};
-use solana_account_decoder::{parse_token::TokenAccountType, UiAccountData};
+use crate::get_associated_token_address;
+use solana_account_decoder::{
+    parse_token::{TokenAccountType, UiTokenAccount},
+    UiAccountData,
+};
 use solana_client::rpc_response::RpcKeyedAccount;
 use solana_sdk::pubkey::Pubkey;
 use std::{
@@ -8,15 +10,20 @@ use std::{
     str::FromStr,
 };
 
-pub(crate) type MintAccounts = BTreeMap<String, Vec<CliTokenAccount>>;
+pub type MintAccounts = BTreeMap<String, Vec<ParsedTokenAccount>>;
 
-#[derive(Serialize, Deserialize)]
-pub(crate) struct UnsupportedAccount {
+pub struct ParsedTokenAccount {
+    pub address: String,
+    pub ui_token_account: UiTokenAccount,
+    pub is_associated: bool,
+}
+
+pub struct UnsupportedAccount {
     pub address: String,
     pub err: String,
 }
 
-pub(crate) fn sort_and_parse_token_accounts(
+pub fn sort_and_parse_token_accounts(
     owner: &Pubkey,
     accounts: Vec<RpcKeyedAccount>,
 ) -> (MintAccounts, Vec<UnsupportedAccount>, usize, bool) {
@@ -48,9 +55,9 @@ pub(crate) fn sort_and_parse_token_accounts(
                             .real_number_string_trimmed()
                             .len();
                         max_len_balance = max_len_balance.max(len_balance);
-                        let parsed_account = CliTokenAccount {
+                        let parsed_account = ParsedTokenAccount {
                             address,
-                            account: ui_token_account,
+                            ui_token_account,
                             is_associated,
                         };
                         let entry = mint_accounts.entry(mint);

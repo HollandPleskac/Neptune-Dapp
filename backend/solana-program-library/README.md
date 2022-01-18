@@ -1,8 +1,21 @@
+# Solana Lending Program
+
+
+The Solend lending protocol is based on the token-lending program authored by [Solana labs](https://github.com/solana-labs/solana-program-library). The Solend implementation can be found [here](https://github.com/solendprotocol/solana-program-library/tree/mainnet/token-lending/audit).
+
 [![Build status][travis-image]][travis-url]
 
 [travis-image]:
 https://travis-ci.org/solana-labs/solana-program-library.svg?branch=master
 [travis-url]: https://travis-ci.org/solana-labs/solana-program-library
+
+## Contributing/Building
+
+The Solend protocol is open source with a focus on developer friendliness and integrations.
+
+Solend is made for developers to build on top of. Check out our developer portal to get involved.
+
+[<img width="200" alt="Screen Shot 2022-01-09 at 5 54 30 PM" src="https://user-images.githubusercontent.com/89805726/148710356-a6cdb798-934a-459d-b795-d4a1099168db.png">](https://dev.solend.fi/)
 
 # Solana Program Library
 
@@ -65,14 +78,6 @@ $ cargo clippy
 $ ./coverage.sh  # Please help! Coverage build currently fails on MacOS due to an XCode `grcov` mismatch...
 ```
 
-#### MacOS
-
-You may need to pin your grcov version, and then rustup with the apple-darwin nightly toolchain:
-```bash
-$ cargo install grcov --version 0.6.1
-$ rustup toolchain install nightly-x86_64-apple-darwin
-```
-
 
 ## Release Process
 SPL programs are currently tagged and released manually. Each program is
@@ -110,45 +115,3 @@ $ git push upstream --tags
 
 Navigate to the program directory and run `cargo package`
 to test the build. Then run `cargo publish`.
- 
- # Disclaimer
-
-All claims, content, designs, algorithms, estimates, roadmaps,
-specifications, and performance measurements described in this project
-are done with the Solana Foundation's ("SF") best efforts. It is up to
-the reader to check and validate their accuracy and truthfulness.
-Furthermore nothing in this project constitutes a solicitation for
-investment.
-
-Any content produced by SF or developer resources that SF provides, are
-for educational and inspiration purposes only. SF does not encourage,
-induce or sanction the deployment, integration or use of any such
-applications (including the code comprising the Solana blockchain
-protocol) in violation of applicable laws or regulations and hereby
-prohibits any such deployment, integration or use. This includes use of
-any such applications by the reader (a) in violation of export control
-or sanctions laws of the United States or any other applicable
-jurisdiction, (b) if the reader is located in or ordinarily resident in
-a country or territory subject to comprehensive sanctions administered
-by the U.S. Office of Foreign Assets Control (OFAC), or (c) if the
-reader is or is working on behalf of a Specially Designated National
-(SDN) or a person subject to similar blocking or denied party
-prohibitions.
-
-The reader should be aware that U.S. export control and sanctions laws
-prohibit U.S. persons (and other persons that are subject to such laws)
-from transacting with persons in certain countries and territories or
-that are on the SDN list. As a project based primarily on open-source
-software, it is possible that such sanctioned persons may nevertheless
-bypass prohibitions, obtain the code comprising the Solana blockchain
-protocol (or other project code or applications) and deploy, integrate,
-or otherwise use it. Accordingly, there is a risk to individuals that
-other persons using the Solana blockchain protocol may be sanctioned
-persons and that transactions with such persons would be a violation of
-U.S. export controls and sanctions law. This risk applies to
-individuals, organizations, and other ecosystem participants that
-deploy, integrate, or use the Solana blockchain protocol code directly
-(e.g., as a node operator), and individuals that transact on the Solana
-blockchain through light clients, third party interfaces, and/or wallet
-software.
-

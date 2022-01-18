@@ -119,8 +119,7 @@ pub trait CurveCalculator: Debug + DynPack {
     /// change the spot price of the pool.
     ///
     /// See more background for the calculation at:
-    ///
-    /// <https://balancer.finance/whitepaper/#single-asset-deposit-withdrawal>
+    /// https://balancer.finance/whitepaper/#single-asset-deposit-withdrawal
     fn deposit_single_token_type(
         &self,
         source_amount: u128,
@@ -138,8 +137,7 @@ pub trait CurveCalculator: Debug + DynPack {
     /// of the pool.
     ///
     /// See more background for the calculation at:
-    ///
-    /// <https://balancer.finance/whitepaper/#single-asset-deposit-withdrawal>
+    /// https://balancer.finance/whitepaper/#single-asset-deposit-withdrawal
     fn withdraw_single_token_type_exact_out(
         &self,
         source_amount: u128,

@@ -12,15 +12,14 @@ import {sendAndConfirmTransaction} from '../src/util/send-and-confirm-transactio
 import {newAccountWithLamports} from '../src/util/new-account-with-lamports';
 import {url} from '../src/util/url';
 import {sleep} from '../src/util/sleep';
-import {Numberu64} from '../dist';
 
 // The following globals are created by `createTokenSwap` and used by subsequent tests
 // Token swap
 let tokenSwap: TokenSwap;
 // authority of the token and accounts
 let authority: PublicKey;
-// bump seed used to generate the authority public key
-let bumpSeed: number;
+// nonce used to generate the authority public key
+let nonce: number;
 // owner of the user accounts
 let owner: Account;
 // Token pool
@@ -46,6 +45,9 @@ const OWNER_WITHDRAW_FEE_NUMERATOR = SWAP_PROGRAM_OWNER_FEE_ADDRESS ? 0 : 1;
 const OWNER_WITHDRAW_FEE_DENOMINATOR = SWAP_PROGRAM_OWNER_FEE_ADDRESS ? 0 : 6;
 const HOST_FEE_NUMERATOR = 20;
 const HOST_FEE_DENOMINATOR = 100;
+
+// curve type used to calculate swaps and deposits
+const CURVE_TYPE = CurveType.ConstantProduct;
 
 // Initial amount in each swap token
 let currentSwapTokenA = 1000000;
@@ -86,16 +88,13 @@ async function getConnection(): Promise<Connection> {
   return connection;
 }
 
-export async function createTokenSwap(
-  curveType: number,
-  curveParameters?: Numberu64,
-): Promise<void> {
+export async function createTokenSwap(): Promise<void> {
   const connection = await getConnection();
   const payer = await newAccountWithLamports(connection, 1000000000);
   owner = await newAccountWithLamports(connection, 1000000000);
   const tokenSwapAccount = new Account();
 
-  [authority, bumpSeed] = await PublicKey.findProgramAddress(
+  [authority, nonce] = await PublicKey.findProgramAddress(
     [tokenSwapAccount.publicKey.toBuffer()],
     TOKEN_SWAP_PROGRAM_ID,
   );
@@ -161,6 +160,7 @@ export async function createTokenSwap(
     tokenAccountPool,
     TOKEN_SWAP_PROGRAM_ID,
     TOKEN_PROGRAM_ID,
+    nonce,
     TRADING_FEE_NUMERATOR,
     TRADING_FEE_DENOMINATOR,
     OWNER_TRADING_FEE_NUMERATOR,
@@ -169,8 +169,7 @@ export async function createTokenSwap(
     OWNER_WITHDRAW_FEE_DENOMINATOR,
     HOST_FEE_NUMERATOR,
     HOST_FEE_DENOMINATOR,
-    curveType,
-    curveParameters,
+    CURVE_TYPE,
   );
 
   console.log('loading token swap');
@@ -214,7 +213,7 @@ export async function createTokenSwap(
   assert(
     HOST_FEE_DENOMINATOR == fetchedTokenSwap.hostFeeDenominator.toNumber(),
   );
-  assert(curveType == fetchedTokenSwap.curveType);
+  assert(CURVE_TYPE == fetchedTokenSwap.curveType);
 }
 
 export async function depositAllTokenTypes(): Promise<void> {

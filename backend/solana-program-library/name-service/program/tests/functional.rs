@@ -34,7 +34,7 @@ async fn test_name_service() {
     let owner = Keypair::new();
 
     let hashed_root_name: Vec<u8> = hashv(&[(HASH_PREFIX.to_owned() + root_name).as_bytes()])
-        .as_ref()
+        .0
         .to_vec();
     let (root_name_account_key, _) = get_seeds_and_key(
         &program_id,
@@ -43,14 +43,12 @@ async fn test_name_service() {
         None,
     );
 
-    let space = 1_000usize;
-    let rent = ctx.banks_client.get_rent().await.unwrap();
     let create_name_instruction = create(
         program_id,
         NameRegistryInstruction::Create {
             hashed_name: hashed_root_name,
-            lamports: rent.minimum_balance(space + NameRecordHeader::LEN),
-            space: space as u32,
+            lamports: 1_000_000,
+            space: 1_000,
         },
         root_name_account_key,
         ctx.payer.pubkey(),
@@ -80,7 +78,7 @@ async fn test_name_service() {
     let sol_subdomains_class = Keypair::new();
 
     let hashed_name: Vec<u8> = hashv(&[(HASH_PREFIX.to_owned() + name).as_bytes()])
-        .as_ref()
+        .0
         .to_vec();
     let (name_account_key, _) = get_seeds_and_key(
         &program_id,
@@ -93,8 +91,8 @@ async fn test_name_service() {
         program_id,
         NameRegistryInstruction::Create {
             hashed_name,
-            lamports: rent.minimum_balance(space + NameRecordHeader::LEN),
-            space: space as u32,
+            lamports: 1_000_000,
+            space: 1_000,
         },
         name_account_key,
         ctx.payer.pubkey(),
@@ -132,7 +130,6 @@ async fn test_name_service() {
         data,
         name_account_key,
         sol_subdomains_class.pubkey(),
-        Some(name_record_header.parent_name),
     )
     .unwrap();
     sign_send_instruction(&mut ctx, update_instruction, vec![&sol_subdomains_class])
@@ -203,9 +200,5 @@ pub async fn sign_send_instruction(
         payer_signers.push(s);
     }
     transaction.partial_sign(&payer_signers, ctx.last_blockhash);
-    #[allow(clippy::useless_conversion)] // Remove during upgrade to 1.10
-    ctx.banks_client
-        .process_transaction(transaction)
-        .await
-        .map_err(|e| e.into())
+    ctx.banks_client.process_transaction(transaction).await
 }

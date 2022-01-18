@@ -2,6 +2,7 @@
 
 use std::cmp::Ordering;
 
+use borsh::BorshSerialize;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
@@ -9,27 +10,26 @@ use solana_program::{
     rent::Rent,
     sysvar::Sysvar,
 };
-use spl_governance_tools::account::create_and_serialize_account_signed;
 
 use crate::{
     error::GovernanceError,
     state::{
-        enums::{GovernanceAccountType, InstructionExecutionStatus},
+        enums::GovernanceAccountType,
         governance::get_governance_data,
         proposal::get_proposal_data_for_governance,
         proposal_instruction::{
-            get_proposal_instruction_address_seeds, InstructionData, ProposalInstructionV2,
+            get_proposal_instruction_address_seeds, InstructionData, ProposalInstruction,
         },
         token_owner_record::get_token_owner_record_data_for_proposal_owner,
     },
+    tools::account::create_and_serialize_account_signed,
 };
 
 /// Processes InsertInstruction instruction
 pub fn process_insert_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
-    option_index: u16,
-    instruction_index: u16,
+    index: u16,
     hold_up_time: u32,
     instruction: InstructionData,
 ) -> ProgramResult {
@@ -70,41 +70,35 @@ pub fn process_insert_instruction(
 
     token_owner_record_data.assert_token_owner_or_delegate_is_signer(governance_authority_info)?;
 
-    let option = &mut proposal_data.options[option_index as usize];
-
-    match instruction_index.cmp(&option.instructions_next_index) {
+    match index.cmp(&proposal_data.instructions_next_index) {
         Ordering::Greater => return Err(GovernanceError::InvalidInstructionIndex.into()),
         // If the index is the same as instructions_next_index then we are adding a new instruction
         // If the index is below instructions_next_index then we are inserting into an existing empty space
         Ordering::Equal => {
-            option.instructions_next_index = option.instructions_next_index.checked_add(1).unwrap();
+            proposal_data.instructions_next_index = proposal_data
+                .instructions_next_index
+                .checked_add(1)
+                .unwrap();
         }
         Ordering::Less => {}
     }
 
-    option.instructions_count = option.instructions_count.checked_add(1).unwrap();
+    proposal_data.instructions_count = proposal_data.instructions_count.checked_add(1).unwrap();
     proposal_data.serialize(&mut *proposal_info.data.borrow_mut())?;
 
-    let proposal_instruction_data = ProposalInstructionV2 {
-        account_type: GovernanceAccountType::ProposalInstructionV2,
-        option_index,
-        instruction_index,
+    let proposal_instruction_data = ProposalInstruction {
+        account_type: GovernanceAccountType::ProposalInstruction,
         hold_up_time,
         instruction,
         executed_at: None,
-        execution_status: InstructionExecutionStatus::None,
         proposal: *proposal_info.key,
     };
 
-    create_and_serialize_account_signed::<ProposalInstructionV2>(
+    create_and_serialize_account_signed::<ProposalInstruction>(
         payer_info,
         proposal_instruction_info,
         &proposal_instruction_data,
-        &get_proposal_instruction_address_seeds(
-            proposal_info.key,
-            &option_index.to_le_bytes(),
-            &instruction_index.to_le_bytes(),
-        ),
+        &get_proposal_instruction_address_seeds(proposal_info.key, &index.to_le_bytes()),
         program_id,
         system_info,
         rent,

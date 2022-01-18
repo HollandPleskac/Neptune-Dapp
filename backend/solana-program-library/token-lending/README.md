@@ -1,10 +1,16 @@
-# Token Lending program
+# Solend Lending program
 
-A lending protocol for the Token program on the Solana blockchain inspired by Aave and Compound.
+The Solend lending protocol is based on the token-lending program authored by [Solana labs](https://github.com/solana-labs/solana-program-library).
 
-Full documentation is available at https://spl.solana.com/token-lending
+## Contributing/Building
 
-Web3 bindings are available in the `./js` directory.
+The Solend protocol is open source with a focus on developer friendliness and integrations.
+
+Solend is made for developers to build on top of. Check out our developer portal to understand more and get involved.
+
+[
+<img width="200" alt="Screen Shot 2022-01-09 at 5 54 30 PM" src="https://user-images.githubusercontent.com/89805726/148710356-a6cdb798-934a-459d-b795-d4a1099168db.png">](https://dev.solend.fi/).
+
 
 ### On-chain programs
 
@@ -12,14 +18,8 @@ Please note that only the lending program deployed to devnet is currently operat
 
 | Cluster | Program Address |
 | --- | --- |
-| Mainnet Beta | [`LendZqTs8gn5CTSJU1jWKhKuVpjJGom45nnwPb2AMTi`](https://explorer.solana.com/address/LendZqTs7gn5CTSJU1jWKhKuVpjJGom45nnwPb2AMTi) |
-| Testnet | [`6TvznH3B2e3p2mbhufNBpgSrLx6UkgvxtVQvopEZ2kuH`](https://explorer.solana.com/address/6TvznH3B2e3p2mbhufNBpgSrLx6UkgvxtVQvopEZ2kuH?cluster=testnet) |
-| Devnet | [`6TvznH3B2e3p2mbhufNBpgSrLx6UkgvxtVQvopEZ2kuH`](https://explorer.solana.com/address/6TvznH3B2e3p2mbhufNBpgSrLx6UkgvxtVQvopEZ2kuH?cluster=devnet) |
-
-### Documentation
-
-- [CLI docs](https://github.com/solana-labs/solana-program-library/tree/master/token-lending/cli)
-- [Client library docs](https://solana-labs.github.io/solana-program-library/token-lending/)
+| Mainnet Beta | [`So1endDq2YkqhipRh3WViPa8hdiSpxWy6z3Z6tMCpAo`](https://explorer.solana.com/address/So1endDq2YkqhipRh3WViPa8hdiSpxWy6z3Z6tMCpAo) |
+| Devnet | [`ALend7Ketfx5bxh6ghsCDXAoDrhvEmsXT3cynB6aPLgx`](https://explorer.solana.com/address/ALend7Ketfx5bxh6ghsCDXAoDrhvEmsXT3cynB6aPLgx?cluster=devnet) |
 
 ### Deploy a lending program (optional)
 

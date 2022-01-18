@@ -11,6 +11,7 @@ fi
 
 workspace_crates=(
   Cargo.toml
+  themis/client_ristretto/Cargo.toml
 )
 
 if [[ ! -r "$solana_dir"/scripts/read-cargo-variable.sh ]]; then
@@ -52,7 +53,6 @@ solana-runtime = { path = "$solana_dir/runtime" }
 solana-sdk = { path = "$solana_dir/sdk" }
 solana-stake-program = { path = "$solana_dir/programs/stake" }
 solana-transaction-status = { path = "$solana_dir/transaction-status" }
-solana-version = { path = "$solana_dir/version" }
 solana-vote-program = { path = "$solana_dir/programs/vote" }
 PATCH
   fi

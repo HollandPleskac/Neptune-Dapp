@@ -36,10 +36,9 @@ crates=(
   solana-stake-program
   solana-transaction-status
   solana-vote-program
-  solana-version
 )
 
 set -x
 for crate in "${crates[@]}"; do
-  sed -E -i'' -e "s#(${crate} = \")(=?).*#\1\2${solana_ver}\"#" "${tomls[@]}"
+  sed -i'' -e "s#\(${crate} = \"\)\(=\?\).*\(\"\)#\1\2$solana_ver\3#g" "${tomls[@]}"
 done

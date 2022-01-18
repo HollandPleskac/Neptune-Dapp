@@ -1,7 +1,7 @@
 import assert from 'assert';
 import BN from 'bn.js';
 import {Buffer} from 'buffer';
-import * as BufferLayout from '@solana/buffer-layout';
+import * as BufferLayout from 'buffer-layout';
 import type {Connection, TransactionSignature} from '@solana/web3.js';
 import {
   Account,
@@ -57,7 +57,7 @@ export class Numberu64 extends BN {
 export const TokenSwapLayout = BufferLayout.struct([
   BufferLayout.u8('version'),
   BufferLayout.u8('isInitialized'),
-  BufferLayout.u8('bumpSeed'),
+  BufferLayout.u8('nonce'),
   Layout.publicKey('tokenProgramId'),
   Layout.publicKey('tokenAccountA'),
   Layout.publicKey('tokenAccountB'),
@@ -180,6 +180,7 @@ export class TokenSwap {
     tokenAccountPool: PublicKey,
     tokenProgramId: PublicKey,
     swapProgramId: PublicKey,
+    nonce: number,
     tradeFeeNumerator: number,
     tradeFeeDenominator: number,
     ownerTradeFeeNumerator: number,
@@ -189,7 +190,6 @@ export class TokenSwap {
     hostFeeNumerator: number,
     hostFeeDenominator: number,
     curveType: number,
-    curveParameters: Numberu64 = new Numberu64(0),
   ): TransactionInstruction {
     const keys = [
       {pubkey: tokenSwapAccount.publicKey, isSigner: false, isWritable: true},
@@ -203,6 +203,7 @@ export class TokenSwap {
     ];
     const commandDataLayout = BufferLayout.struct([
       BufferLayout.u8('instruction'),
+      BufferLayout.u8('nonce'),
       BufferLayout.nu64('tradeFeeNumerator'),
       BufferLayout.nu64('tradeFeeDenominator'),
       BufferLayout.nu64('ownerTradeFeeNumerator'),
@@ -215,17 +216,11 @@ export class TokenSwap {
       BufferLayout.blob(32, 'curveParameters'),
     ]);
     let data = Buffer.alloc(1024);
-
-    // package curve parameters
-    // NOTE: currently assume all curves take a single parameter, u64 int
-    //       the remaining 24 of the 32 bytes available are filled with 0s
-    let curveParamsBuffer = Buffer.alloc(32);
-    curveParameters.toBuffer().copy(curveParamsBuffer);
-
     {
       const encodeLength = commandDataLayout.encode(
         {
           instruction: 0, // InitializeSwap instruction
+          nonce,
           tradeFeeNumerator,
           tradeFeeDenominator,
           ownerTradeFeeNumerator,
@@ -235,7 +230,6 @@ export class TokenSwap {
           hostFeeNumerator,
           hostFeeDenominator,
           curveType,
-          curveParameters: curveParamsBuffer,
         },
         data,
       );
@@ -331,6 +325,7 @@ export class TokenSwap {
    * @param payer Pays for the transaction
    * @param tokenSwapAccount The token swap account
    * @param authority The authority over the swap and accounts
+   * @param nonce The nonce used to generate the authority
    * @param tokenAccountA: The token swap's Token A account
    * @param tokenAccountB: The token swap's Token B account
    * @param poolToken The pool token
@@ -355,6 +350,7 @@ export class TokenSwap {
     tokenAccountPool: PublicKey,
     swapProgramId: PublicKey,
     tokenProgramId: PublicKey,
+    nonce: number,
     tradeFeeNumerator: number,
     tradeFeeDenominator: number,
     ownerTradeFeeNumerator: number,
@@ -364,7 +360,6 @@ export class TokenSwap {
     hostFeeNumerator: number,
     hostFeeDenominator: number,
     curveType: number,
-    curveParameters?: Numberu64,
   ): Promise<TokenSwap> {
     let transaction;
     const tokenSwap = new TokenSwap(
@@ -416,6 +411,7 @@ export class TokenSwap {
       tokenAccountPool,
       tokenProgramId,
       swapProgramId,
+      nonce,
       tradeFeeNumerator,
       tradeFeeDenominator,
       ownerTradeFeeNumerator,
@@ -425,7 +421,6 @@ export class TokenSwap {
       hostFeeNumerator,
       hostFeeDenominator,
       curveType,
-      curveParameters,
     );
 
     transaction.add(instruction);

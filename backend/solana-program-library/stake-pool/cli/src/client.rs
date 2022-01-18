@@ -5,14 +5,13 @@ use {
         client_error::ClientError,
         rpc_client::RpcClient,
         rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
-        rpc_filter::{Memcmp, MemcmpEncodedBytes, MemcmpEncoding, RpcFilterType},
+        rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType},
     },
-    solana_program::{borsh::try_from_slice_unchecked, program_pack::Pack, pubkey::Pubkey, stake},
+    solana_program::{borsh::try_from_slice_unchecked, program_pack::Pack, pubkey::Pubkey},
     spl_stake_pool::{
-        find_withdraw_authority_program_address,
+        stake_program,
         state::{StakePool, ValidatorList},
     },
-    std::collections::HashSet,
 };
 
 type Error = Box<dyn std::error::Error>;
@@ -71,23 +70,25 @@ pub fn get_token_mint(
 pub(crate) fn get_stake_state(
     rpc_client: &RpcClient,
     stake_address: &Pubkey,
-) -> Result<stake::state::StakeState, Error> {
+) -> Result<stake_program::StakeState, Error> {
     let account_data = rpc_client.get_account_data(stake_address)?;
     let stake_state = deserialize(account_data.as_slice())
         .map_err(|err| format!("Invalid stake account {}: {}", stake_address, err))?;
     Ok(stake_state)
 }
 
-pub(crate) fn get_stake_pools(
+pub(crate) fn get_stake_accounts_by_withdraw_authority(
     rpc_client: &RpcClient,
-) -> Result<Vec<(Pubkey, StakePool, ValidatorList, Pubkey)>, ClientError> {
+    withdraw_authority: &Pubkey,
+) -> Result<Vec<(Pubkey, u64, stake_program::StakeState)>, ClientError> {
     rpc_client
         .get_program_accounts_with_config(
-            &spl_stake_pool::id(),
+            &stake_program::id(),
+            #[allow(clippy::needless_update)] // TODO: Remove after updating to solana >=1.6.10
             RpcProgramAccountsConfig {
                 filters: Some(vec![RpcFilterType::Memcmp(Memcmp {
-                    offset: 0, // 0 is the account type
-                    bytes: MemcmpEncodedBytes::Base58("2".to_string()),
+                    offset: 44, // 44 is Withdrawer authority offset in stake account stake
+                    bytes: MemcmpEncodedBytes::Binary(format!("{}", withdraw_authority)),
                     encoding: None,
                 })]),
                 account_config: RpcAccountInfoConfig {
@@ -100,53 +101,15 @@ pub(crate) fn get_stake_pools(
         .map(|accounts| {
             accounts
                 .into_iter()
-                .filter_map(|(address, account)| {
-                    let pool_withdraw_authority =
-                        find_withdraw_authority_program_address(&spl_stake_pool::id(), &address).0;
-                    match try_from_slice_unchecked::<StakePool>(account.data.as_slice()) {
-                        Ok(stake_pool) => {
-                            get_validator_list(rpc_client, &stake_pool.validator_list)
-                                .map(|validator_list| {
-                                    (address, stake_pool, validator_list, pool_withdraw_authority)
-                                })
-                                .ok()
-                        }
+                .filter_map(
+                    |(address, account)| match deserialize(account.data.as_slice()) {
+                        Ok(stake_state) => Some((address, account.lamports, stake_state)),
                         Err(err) => {
-                            eprintln!("Invalid stake pool data for {}: {}", address, err);
+                            eprintln!("Invalid stake account data for {}: {}", address, err);
                             None
                         }
-                    }
-                })
+                    },
+                )
                 .collect()
         })
-}
-
-pub(crate) fn get_all_stake(
-    rpc_client: &RpcClient,
-    authorized_staker: &Pubkey,
-) -> Result<HashSet<Pubkey>, ClientError> {
-    let all_stake_accounts = rpc_client.get_program_accounts_with_config(
-        &stake::program::id(),
-        RpcProgramAccountsConfig {
-            filters: Some(vec![
-                // Filter by `Meta::authorized::staker`, which begins at byte offset 12
-                RpcFilterType::Memcmp(Memcmp {
-                    offset: 12,
-                    bytes: MemcmpEncodedBytes::Base58(authorized_staker.to_string()),
-                    encoding: Some(MemcmpEncoding::Binary),
-                }),
-            ]),
-            account_config: RpcAccountInfoConfig {
-                encoding: Some(solana_account_decoder::UiAccountEncoding::Base64),
-                commitment: Some(rpc_client.commitment()),
-                ..RpcAccountInfoConfig::default()
-            },
-            ..RpcProgramAccountsConfig::default()
-        },
-    )?;
-
-    Ok(all_stake_accounts
-        .into_iter()
-        .map(|(address, _)| address)
-        .collect())
 }
