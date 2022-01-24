@@ -17,7 +17,7 @@ import * as BufferLayout from "buffer-layout";
 import * as Layout from "./layout";
 
 export const LENDING_PROGRAM_ID = new PublicKey(
-  "LendZqTs7gn5CTSJU1jWKhKuVpjJGom45nnwPb2AMTi"
+  "28ZLwGbjUqyAPdqWmpysKpg7YkajhCQmGJa2wKk9E6fv"
 );
 
 /**
@@ -87,12 +87,13 @@ export class LendingMarket {
       )
       .add(LendingMarket.createInitLendingMarketInstruction(lendingMarket));
 
-    await sendAndConfirmTransaction(
+    const txHash = await sendAndConfirmTransaction(
       lendingMarket.connection,
       transaction,
       [lendingMarket.payer, lendingMarket.account],
       { commitment: "singleGossip", preflightCommitment: "singleGossip" }
     );
+    console.log("transaction!", txHash);
 
     return lendingMarket;
   }
