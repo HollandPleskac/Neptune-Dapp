@@ -8,15 +8,19 @@ const TopDetails = () => {
 
       <hr className={styles['neptune-top-details__hr']} />
 
-      <div style={{position: 'relative', display: 'flex', margin: '0 auto', alignItems:'center'}}>
+      <div className={styles['neptune-top-details__graph-wrapper']}>
         <div style={{marginRight: '3rem'}}>
           Total Deposits <br />
-          $3,456,069
+          $3,456,069 <br />
+          - <br />
+          18,778.90 SOL
         </div>
         <DonutGraph />
         <div style={{marginLeft: '3rem'}}>
           Total Borrowed <br />
-          $1,456,069
+          $1,456,069 <br />
+          - <br />
+          7,911.70 SOL
         </div>
       </div>
     </div>

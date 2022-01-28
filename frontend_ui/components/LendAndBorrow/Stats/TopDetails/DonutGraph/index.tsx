@@ -1,6 +1,8 @@
 import React from 'react';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
+import SolLogo from './../../../../../assets/SolLogo';
+import styles from './donutGraph.module.scss';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -25,7 +27,8 @@ export const data = {
 
 const DonutGraph = () => {
   return (
-    <div style={{width: '200px'}}>
+    <div style={{width: '200px', position: 'relative'}}>
+      <SolLogo className={styles['neptune-donut-graph__sol-logo']} />
       <Doughnut data={data} width={200} height={200} options={{maintainAspectRatio: false}} />
     </div>
   )
