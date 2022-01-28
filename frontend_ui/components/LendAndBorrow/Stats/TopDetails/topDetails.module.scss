@@ -1,0 +1,15 @@
+.neptune-top-details {
+  &__hr {
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    @apply w-full;
+    @apply mt-8;
+  }
+  &__graph-wrapper {
+    @apply relative;
+    @apply flex;
+    @apply my-0;
+    @apply mx-auto;
+    @apply items-center;
+    @apply mt-10;
+  }
+}
