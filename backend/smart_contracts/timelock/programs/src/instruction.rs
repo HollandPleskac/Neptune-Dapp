@@ -141,12 +141,28 @@ pub enum VestingInstruction {
       schedules: Vec<VestingSchedule>, 
     },
 
+    CreateCalendarAccount{
+      calendar_account_seed: [u8; 32],
+      account_size: u64
+    },
+
+    CreatePointerAccount{
+      pointer_account_seed: [u8; 32],
+    },
+    
+    PopulatePointerAccount{}, 
+
     // 1. [signer] owner's account
     // 2. [] vesting account
     TestOnChainVotingPower {
       vesting_account_seed: [u8; 32],
       client_voting_power: f32,
     },
+    TestPopulateCalendarAccount {},
+
+    TestUnpackAndPopulateCalendarAccount{
+      iterations: u64
+    }
 }
 
 impl VestingInstruction {
@@ -310,6 +326,38 @@ impl VestingInstruction {
                   schedules,
               }
             }
+            //create a calendar account
+            5 => {
+              let calendar_account_seed: [u8; 32] = rest
+                .get(..32)
+                .and_then(|slice| slice.try_into().ok())
+                .unwrap();
+              let account_size = rest
+                .get(32..)
+                .and_then(|slice| slice.try_into().ok())
+                .map(u64::from_le_bytes)
+                .ok_or(InvalidInstruction)?; 
+              Self::CreateCalendarAccount{
+                calendar_account_seed,
+                account_size
+              }              
+            }
+            //create a pointer account
+            6 => {
+              let pointer_account_seed: [u8; 32] = rest
+                .get(..32)
+                .and_then(|slice| slice.try_into().ok())
+                .unwrap();
+              Self::CreatePointerAccount{
+                pointer_account_seed,
+              }              
+            }
+            //populate a pointer account
+            7 => {
+              Self::PopulatePointerAccount{
+
+              }
+            }
             //test on chain voting power   
             23 => {
               let vesting_account_seed: [u8; 32] = rest
@@ -326,10 +374,24 @@ impl VestingInstruction {
                 client_voting_power,
               }
             }
+            25 => {
+              Self::TestPopulateCalendarAccount{}
+            }
+            26 => {
+              let iterations = rest
+              .get(..8)
+              .and_then(|slice| slice.try_into().ok())
+              .map(u64::from_le_bytes)
+              .ok_or(InvalidInstruction)?;
+              Self::TestUnpackAndPopulateCalendarAccount{
+                iterations
+              }
+            }
             _ => {
                 msg!("Unsupported tag");
                 return Err(InvalidInstruction.into());
             }
+
 
         })
     }
@@ -396,6 +458,23 @@ impl VestingInstruction {
                   buf.extend_from_slice(&s.amount.to_le_bytes());
               }
             }
+            Self::CreateCalendarAccount{
+              calendar_account_seed,
+              account_size
+            } => {
+              buf.push(5);
+              buf.extend_from_slice(calendar_account_seed);
+              buf.extend(&account_size.to_le_bytes());
+            }
+            Self::CreatePointerAccount{
+              pointer_account_seed
+            } => {
+              buf.push(6);
+              buf.extend_from_slice(pointer_account_seed);
+            }
+            Self::PopulatePointerAccount{} => {
+              buf.push(7);
+            }
             Self::TestOnChainVotingPower{
               vesting_account_seed,
               client_voting_power,
@@ -403,6 +482,15 @@ impl VestingInstruction {
               buf.push(23);
               buf.extend_from_slice(vesting_account_seed);
               buf.extend_from_slice(&client_voting_power.to_le_bytes());
+            }
+            Self::TestPopulateCalendarAccount{} => {
+              buf.push(25);
+            }
+            Self::TestUnpackAndPopulateCalendarAccount{
+              iterations
+            } => {
+              buf.push(26);
+              buf.extend_from_slice(&iterations.to_le_bytes());
             }
         };
         buf

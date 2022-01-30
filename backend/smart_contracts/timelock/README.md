@@ -2,7 +2,7 @@
 
 This repo builds a frontend to [Bonfida's token vesting program](https://github.com/Bonfida/token-vesting) using the nextjs scaffold [provided by thuglabs](https://github.com/thuglabs/create-dapp-solana-nextjs). It allows a user to lock a set amount of tokens from a given mint account for a set amount of time. Once the specified time has past, the same user will be able to claim the tokens again.
 
-The program is deployed to Solana devnet. Its current program ID is `46vtkpbGKPQNL549bcsPphzWr3vnrrwtp3urK6TSyfsX`. This program ID is hard coded for the app to use in `src/commands/const`.
+The program is deployed to Solana devnet. Its current program ID is `HGJnXzjzsMGtgQ1bdAYqyjZ9paNfPZ2aYSrXtZZR2JyA`. This program ID is hard coded for the app to use in `src/commands/const`.
 
 Start the app by running `yarn dev` in `src`. Once the app starts, you can connect your Phantom wallet and will be greeted with two sliders and a text box. The large slider allows you to choose how long you lock your tokens for, anywhere from 0 to 4 years. The small slider allows you to manually type in as small a lockup period as you want, which is helpful for testing. The smallest increment available is 0.0001 years, which is about 1.5 hours
 

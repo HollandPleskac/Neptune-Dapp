@@ -1,5 +1,7 @@
-import { PublicKey } from '@solana/web3.js';
-import { Numberu64 } from './utils';
+import { PublicKey, Struct } from '@solana/web3.js';
+import { deserialize } from 'v8';
+import { Numberu64, Numberu32 } from './utils';
+import { deserialize as borsh_deserialize } from 'borsh'
 
 export class Schedule {
   // Release time in unix timestamp
@@ -80,4 +82,59 @@ export class ContractInfo {
       schedules,
     );
   }
+}
+
+class Primitive {
+  pointMap!: Map<number,Point>
+
+  constructor(
+    pointMap: Map<number,Point>
+  ) {
+    this.pointMap = pointMap
+  }
+}
+
+export class Point {
+  slope!: number;
+  bias!: number;
+  dslope!: number;
+
+  constructor(
+    slope: number,
+    bias: number,
+    dslope: number,
+  ) {
+    this.slope = slope;
+    this.bias= bias;
+    this.dslope = dslope;
+  }
+}
+
+//bruh, for some reason, the borsh deserialization is unpacking the data in a super weird format
+//I don't think its a problem, since all the data is there, but its annoying. 
+//it goes like this to get to the map
+//deser['pointMap']['pointMap']
+//then each point is formatted weird too. All the data is stored in the slope. So if you want
+//to get the bias of the point that's at index 1234, you use.
+//deser['pointMap']['pointMap'].get(1234).slope.bias.toNumber()
+export function unpackCalendar(buf: Buffer): any {
+  const schema = new Map<Function, any>([
+    [Primitive, 
+      { kind: 'struct', fields: [
+          ['pointMap', { 
+            kind: 'map', key: 'u32', value: Point 
+          }]
+      ]}
+    ],
+    [Point,
+      {kind: 'struct', fields: [
+        ['slope', 'u128'],
+        ['bias', 'u128'],
+        ['dslope','u128']
+      ]}
+    ]
+  ]);
+  const deser = borsh_deserialize(schema, Primitive, buf);
+  const map = deser['pointMap'];
+  return 
 }

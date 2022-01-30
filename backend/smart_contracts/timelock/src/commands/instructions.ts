@@ -2,12 +2,17 @@ import {
   PublicKey, 
   SYSVAR_RENT_PUBKEY,
   SYSVAR_CLOCK_PUBKEY, 
-  TransactionInstruction 
+  TransactionInstruction,
+  SystemProgram
 } from '@solana/web3.js';
 import { Schedule } from './state';
 import { connection, getAccountInfo, Numberu32, Numberu64 } from './utils';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
-import { TOKEN_VESTING_PROGRAM_ID } from './const';
+import { 
+  TOKEN_VESTING_PROGRAM_ID,
+  SECONDS_IN_WEEK,
+  ZERO_EPOCH
+ } from './const';
 
 export enum Instruction {
   Init,
@@ -377,6 +382,143 @@ export function onChainVotingPowerTestInstruction(
       isWritable: false,
     },
   ];
+
+  return new TransactionInstruction({
+    keys,
+    programId: TOKEN_VESTING_PROGRAM_ID,
+    data,
+  });
+}
+
+export function createCalendarIx(
+  userPk: PublicKey,
+  cal_account: PublicKey,
+  seed: Array<Buffer | Uint8Array>,
+  cal_size: number
+): TransactionInstruction {
+  let buffers = [
+    Buffer.from(Int8Array.from([5]).buffer), //len 1
+    Buffer.concat(seed), //len 32
+    new Numberu64(cal_size).toBuffer() //len 8
+  ];
+  const data = Buffer.concat(buffers);
+  const keys = [
+    {
+      pubkey: userPk,
+      isSigner: true,
+      isWritable: false,
+    },
+    {
+      pubkey: cal_account,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: SystemProgram.programId,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: SYSVAR_RENT_PUBKEY,
+      isSigner: false,
+      isWritable: false,
+    },
+  ]
+
+  return new TransactionInstruction({
+    keys,
+    programId: TOKEN_VESTING_PROGRAM_ID,
+    data,
+  });
+}
+
+export function newPointerIx(
+  userPk: PublicKey,
+  pointer_account: PublicKey,
+  seed: Array<Buffer| Uint8Array>,
+  cal_account: PublicKey
+): Array<TransactionInstruction> {
+  let ixs = [
+    createPointerIx(
+      userPk,
+      pointer_account,
+      seed
+    ),
+    populatePointerIx(
+      userPk,
+      pointer_account,
+      cal_account
+    )
+  ]
+  return ixs
+}
+
+export function createPointerIx(
+  userPk: PublicKey,
+  pointer_account: PublicKey,
+  seed: Array<Buffer | Uint8Array>,
+): TransactionInstruction {
+  let buffers = [
+    Buffer.from(Int8Array.from([6]).buffer), //len 1
+    Buffer.concat(seed), //len 32
+  ];
+  const data = Buffer.concat(buffers);
+  const keys = [
+    {
+      pubkey: userPk,
+      isSigner: true,
+      isWritable: false,
+    },
+    {
+      pubkey: pointer_account,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: SystemProgram.programId,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: SYSVAR_RENT_PUBKEY,
+      isSigner: false,
+      isWritable: false,
+    },
+  ]
+
+  return new TransactionInstruction({
+    keys,
+    programId: TOKEN_VESTING_PROGRAM_ID,
+    data,
+  });
+}
+
+export function populatePointerIx(
+  userPk: PublicKey,
+  pointer_account: PublicKey,
+  cal_account: PublicKey
+): TransactionInstruction {
+  let buffers = [
+    Buffer.from(Int8Array.from([7]).buffer), //len 1
+  ];
+  const data = Buffer.concat(buffers);
+  const keys = [
+    {
+      pubkey: userPk,
+      isSigner: true,
+      isWritable: false,
+    },
+    {
+      pubkey: pointer_account,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: cal_account,
+      isSigner: false,
+      isWritable: false,
+    },
+  ]
 
   return new TransactionInstruction({
     keys,

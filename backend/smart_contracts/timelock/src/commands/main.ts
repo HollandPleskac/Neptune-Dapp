@@ -13,7 +13,9 @@ import {
   createUnlockInstruction,
   createNewDataAccountInstruction,
   populateNewDataAccountInstruction,
-  onChainVotingPowerTestInstruction
+  onChainVotingPowerTestInstruction,
+  newPointerIx,
+  createCalendarIx,
 } from './instructions';
 import {
   findAssociatedTokenAddress,
@@ -21,12 +23,24 @@ import {
   getAccountInfo,
   deriveAccountInfo,
   getDataAccount,
-  getVotingPower
+  getVotingPower,
+  transferInstructions,
+  getPointerSeed,
+  Numberu32
 } from './utils';
-import { ContractInfo, Schedule } from './state';
+import { ContractInfo, Schedule, unpackCalendar } from './state';
 import { assert } from 'console';
 import bs58 from 'bs58';
-import { SCHEDULE_SIZE } from './const';
+import { 
+  SCHEDULE_SIZE,
+  SECONDS_IN_WEEK,
+  WEEKS_IN_EPOCH,
+  ZERO_EPOCH,
+  TOKEN_VESTING_PROGRAM_ID,
+  NEPTUNE_MINT,
+  CAL_ENTRY_SIZE
+ } from './const';
+ import{ serialize, deserialize } from 'borsh';
 
 export async function createVestingAccount(
   programId: PublicKey,
@@ -267,3 +281,124 @@ export async function  onChainVotingPower(
   } 
   return instruction
 }
+
+export async function buildPointerAndCalendarIx(
+  todaysDateInSeconds: number,
+  unlockDateInSeconds: number,
+  userPk: PublicKey,
+  connection: Connection
+): Promise<Array<TransactionInstruction>> {
+    var ix: Array<TransactionInstruction> = [];
+
+    //POINTER ACCOUNT HANDLING
+    //epochs are the number of weeks since unix zero time. Each pointer account stores
+    //a calendar account that holds 26 weeks (6 months) worth of data.
+    //each pointer account is derived from the unix timestamp of the first epoch it records
+    //data for
+    const current_epoch = Math.floor(todaysDateInSeconds / SECONDS_IN_WEEK);
+    const current_epoch_ts = SECONDS_IN_WEEK * current_epoch;
+    const unlock_epoch = Math.floor(unlockDateInSeconds / SECONDS_IN_WEEK);
+    const unlock_epoch_ts = SECONDS_IN_WEEK * unlock_epoch;
+  
+    const current_pointer_ix = buildPointerIx(current_epoch_ts, userPk, connection);
+    const unlock_pointer_ix = buildPointerIx(unlock_epoch_ts, userPk, connection);
+
+    //see if a pointer account exists for each pointer ts.
+    //if it doesn't, create one and create a calendar account for it
+    //if it does exist, get the calendar account and see if there's a point for the timestamp
+    return ix
+}
+
+export async function buildPointerIx(
+  ts: number,
+  userPk: PublicKey,
+  connection: Connection
+  ): Promise<Array<TransactionInstruction>> {
+    var ix: Array<TransactionInstruction> = [];
+  
+    //starts at the zero epoch. iterates through the timestamps for the timeframes each pointer 
+    //account represents until we find the timestamp where our parameter fits.
+    //for our purposes, zero epoch of our protocol is 1/6/22 0000 GMT
+    const zero_epoch_ts = SECONDS_IN_WEEK * ZERO_EPOCH;
+    const seconds_in_epoch = SECONDS_IN_WEEK * WEEKS_IN_EPOCH
+    var left_ts = zero_epoch_ts;
+    var right_ts = zero_epoch_ts + seconds_in_epoch;
+    var check = true
+    while (check) {
+      if (left_ts <= ts && ts <= right_ts) {
+        check = false
+        break
+      } else {
+        left_ts += seconds_in_epoch
+        right_ts += seconds_in_epoch
+      }
+    }
+
+    //check to see if there is a pointer account for the given timestamp.
+    const seed_word = getPointerSeed(left_ts);
+    const arr = await deriveAccountInfo(
+      seed_word,
+      TOKEN_VESTING_PROGRAM_ID,
+      NEPTUNE_MINT
+    )
+    const pointer_account = arr[0];
+    const pointer_seed = arr[2];
+    const pointer_info = getAccountInfo(
+      pointer_account,
+      connection, 
+    )
+
+    //get the calendar info here too, since we'l need it either way
+    const cal_arr = await deriveAccountInfo(
+      pointer_account.toBuffer(),
+      TOKEN_VESTING_PROGRAM_ID,
+      NEPTUNE_MINT
+    );
+    const cal_account = cal_arr[0];
+    const cal_seed = cal_arr[2];
+
+    if (pointer_info == null) {
+    //if pointer account info is empty, build ix to create a new pointer account and a new
+    //calendar account to go in it. The create calendar ix needs to come first. 
+    //cal size is 5 bytes for header, 4 bytes for btree init and CAL_ENTRY_SIZE bytes for the first cal entry.
+      const cal_size = 5 + 4 + CAL_ENTRY_SIZE;
+      const create_calendar_ix = createCalendarIx(
+        userPk,
+        cal_account, 
+        [cal_seed],
+        cal_size
+      );
+      ix = transferInstructions(create_calendar_ix, ix);
+      const create_pointer_ix = await newPointerIx(
+        userPk,
+        pointer_account,
+        [pointer_seed],
+        cal_account
+      );
+      ix = transferInstructions(create_pointer_ix, ix);
+
+    } else {
+    //if pointer account info is NOT empty, get info about the calendar account within it. Then
+    //de-serialize the calendar within and check to see if there is a point for the timestamp
+    //we're looking for. If there is, then we'll just update that account. If there isn't, 
+    //create ix for a net new calendar account and save it to the pointer
+      const cal_info = getAccountInfo(
+        cal_account,
+        connection, 
+      )
+      if (cal_info == null) {
+        console.log("pointer account present without calendar inside it. This should never happen");
+      } else {
+        const cal_data = cal_info.data;
+        const num_of_cal_entries = new Numberu32(cal_data.slice(1,6));
+        const raw_calendar = cal_data.slice(6);
+        const calendar = unpackCalendar(raw_calendar.toBuffer());
+        console.log("calendar!", calendar)
+
+
+      }
+    }
+
+  
+    return ix
+  }

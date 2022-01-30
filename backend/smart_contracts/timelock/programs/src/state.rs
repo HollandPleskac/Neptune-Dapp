@@ -2,9 +2,22 @@ use solana_program::{
     program_error::ProgramError,
     program_pack::{IsInitialized, Pack, Sealed},
     pubkey::Pubkey,
+    entrypoint::ProgramResult,
+    program_memory::sol_memcpy,
+    msg,
 };
-use std::convert::TryInto;
 
+use std::convert::TryInto;
+use std::collections::BTreeMap;
+use arrayref::{array_ref, array_refs, array_mut_ref, mut_array_refs};
+use borsh::{BorshDeserialize, BorshSerialize};
+use crate::error::{CalendarError};
+
+pub const ACCOUNT_SPACE: usize = 10_240; //10 mill bytes, or 10MB: largest SOL account size
+pub const INIT_BYTES: usize = 1;
+pub const BTREE_LEN: usize = 4; //want this to be a u32
+pub const BTREE_STORAGE: usize = ACCOUNT_SPACE - INIT_BYTES - BTREE_LEN;
+pub const C_HEADER_SIZE: usize = 5;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct VestingSchedule {
@@ -27,6 +40,28 @@ pub struct DataHeader {
     pub is_initialized: bool,
 }
 
+#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize, Clone)]
+pub struct Point {
+  pub slope: i128,
+  pub bias: i128,
+  pub dslope: i128
+}
+
+#[derive(Debug, Default, PartialEq)]
+pub struct CalendarAccountHeader {
+  pub is_initialized: bool,
+  pub calendar_length: u32,
+}
+
+//not much here now, but maybe we'll need more in the future
+#[derive(Debug, Default, PartialEq)]
+pub struct PointerAccountHeader {
+  pub is_initialized: bool,
+  pub calendar_account: Pubkey,
+}
+
+
+//VestingScheduleHeader impls
 impl Sealed for VestingScheduleHeader {}
 
 impl Pack for VestingScheduleHeader {
@@ -75,6 +110,14 @@ impl Pack for VestingScheduleHeader {
     }
 }
 
+impl IsInitialized for VestingScheduleHeader {
+  fn is_initialized(&self) -> bool {
+      self.is_initialized
+  }
+}
+
+
+//Vesting Schedule impls
 impl Sealed for VestingSchedule {}
 
 impl Pack for VestingSchedule {
@@ -105,6 +148,8 @@ impl Pack for VestingSchedule {
     }
 }
 
+
+//DataHeader impls
 impl Sealed for DataHeader {}
 
 impl Pack for DataHeader {
@@ -129,13 +174,7 @@ impl Pack for DataHeader {
       vesting_account,
       is_initialized,
     })
-}
-}
-
-impl IsInitialized for VestingScheduleHeader {
-    fn is_initialized(&self) -> bool {
-        self.is_initialized
-    }
+  }
 }
 
 impl IsInitialized for DataHeader {
@@ -144,26 +183,201 @@ impl IsInitialized for DataHeader {
   }
 }
 
-pub fn unpack_schedules(input: &[u8]) -> Result<Vec<VestingSchedule>, ProgramError> {
-    let number_of_schedules = input.len() / VestingSchedule::LEN;
-    let mut output: Vec<VestingSchedule> = Vec::with_capacity(number_of_schedules);
-    let mut offset = 0;
-    for _ in 0..number_of_schedules {
-        output.push(VestingSchedule::unpack_from_slice(
-            &input[offset..offset + VestingSchedule::LEN],
-        )?);
-        offset += VestingSchedule::LEN;
+/*
+//CalendarAccountHeader impls
+impl CalendarAccountHeader {
+  //lets us know if the account is initialized
+  pub fn set_initialized(&mut self) {
+    self.is_initialized = true;
+  }
+
+  //add a new key value pair to the calendar 
+  pub fn add(&mut self, key: u64, value: Point) -> ProgramResult {
+    match self.calendar.contains_key(&key) {
+      true => Err(CalendarError::KeyAlreadyExists.into()),
+      false => {
+        self.calendar.insert(key,value);
+        Ok(())
+      }
     }
-    Ok(output)
+  }
+
+  //remove a key value pair from the calendar and returns the key's value
+  pub fn remove(&mut self, key: &u64)  -> Result<Point, CalendarError> {
+    match self.calendar.contains_key(key) {
+      true => Ok(self.calendar.remove(key).unwrap()),
+      false => Err(CalendarError::KeyNotFoundInAccount),
+    }
+  }
+}
+*/
+
+impl Sealed for CalendarAccountHeader {}
+
+impl IsInitialized for CalendarAccountHeader {
+  fn is_initialized(&self) -> bool {
+    self.is_initialized
+  }
+}
+
+impl Pack for CalendarAccountHeader {
+  const LEN: usize = C_HEADER_SIZE;
+
+  #[allow(clippy::ptr_offset_with_cast)]
+  fn pack_into_slice(
+    &self,
+    dst: &mut [u8],
+  ) {
+    let is_initialized = self.is_initialized;
+    let calendar_length = self.calendar_length;
+
+    //create an array of references for easy serializing
+    let dst = array_mut_ref![dst, 0, C_HEADER_SIZE];
+    let (is_initialized_dst, calendar_length_dst) = mut_array_refs![dst, INIT_BYTES, BTREE_LEN];
+    
+    //set initialized flag
+    is_initialized_dst[0] = is_initialized as u8;
+
+    //store number of timestamps in calendar
+    calendar_length_dst[..].copy_from_slice(&calendar_length.to_le_bytes());
+  }
+
+  #[allow(clippy::ptr_offset_with_cast)]
+  fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
+    
+    //create an array of references for easy deserializing
+    let src = array_ref![src, 0, C_HEADER_SIZE];
+    let (is_initialized_src, calendar_len_src) = array_refs![src, INIT_BYTES, BTREE_LEN];
+    
+    //deserialize values
+    let is_initialized = src[0] == 1;
+    let calendar_length = u32::from_le_bytes(src[1..].try_into().unwrap());
+    Ok( Self {
+      is_initialized,
+      calendar_length
+    })
+  }
+}
+
+//packing and unpacking functions for our calendars. 
+//This method needs the exact calendar bytes
+pub fn unpack_calendar(input: &[u8]) -> Result<BTreeMap<u16, Point>, ProgramError> {
+  let output = BTreeMap::<u16, Point>::try_from_slice(input).unwrap();
+  Ok(output)
+}
+
+//pack the calendar up. We can pass in the entire calendar minus the header here. 
+pub fn pack_calendar_into_slice(calendar: BTreeMap<u16, Point>, target: &mut [u8] ) {
+  let calendar_bytes = calendar.try_to_vec().unwrap();
+  let data_len = calendar_bytes.len();
+  msg!("current length of btree is {}", data_len);
+  sol_memcpy(target, &calendar_bytes, data_len);
+}
+
+
+//Pointer Header Impls
+impl Sealed for PointerAccountHeader {}
+
+impl IsInitialized for PointerAccountHeader {
+  fn is_initialized(&self) -> bool {
+    self.is_initialized
+  }
+}
+
+impl Pack for PointerAccountHeader{
+  const LEN: usize = 33; 
+
+  fn pack_into_slice(&self, dst: &mut [u8]) {
+    dst[0] = self.is_initialized as u8;
+    let pubkey_bytes = self.calendar_account.to_bytes();
+    for i in 1..33 { 
+      dst[i] = pubkey_bytes[i];
+    }
+  }
+
+  fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
+    if src.len() < 33 {
+        return Err(ProgramError::InvalidAccountData)
+    }
+    let is_initialized = src[0] == 1;
+    let calendar_account = Pubkey::new(src[1..33].try_into().unwrap());
+
+    
+    Ok(Self {
+      is_initialized,
+      calendar_account
+    })
+  }
+}
+
+//packing and unpacking functions for schedule objects
+pub fn unpack_schedules(input: &[u8]) -> Result<Vec<VestingSchedule>, ProgramError> {
+  let number_of_schedules = input.len() / VestingSchedule::LEN;
+  let mut output: Vec<VestingSchedule> = Vec::with_capacity(number_of_schedules);
+  let mut offset = 0;
+  for _ in 0..number_of_schedules {
+      output.push(VestingSchedule::unpack_from_slice(
+          &input[offset..offset + VestingSchedule::LEN],
+      )?);
+      offset += VestingSchedule::LEN;
+  }
+  Ok(output)
 }
 
 pub fn pack_schedules_into_slice(schedules: Vec<VestingSchedule>, target: &mut [u8]) {
-    let mut offset = 0;
-    for s in schedules.iter() {
-        s.pack_into_slice(&mut target[offset..]);
-        offset += VestingSchedule::LEN;
-    }
+  let mut offset = 0;
+  for s in schedules.iter() {
+      s.pack_into_slice(&mut target[offset..]);
+      offset += VestingSchedule::LEN;
+  }
 }
+
+
+//Point impls
+impl Sealed for Point {}
+/*
+impl Pack for Point {
+  const LEN: usize = 48;
+
+  fn pack_into_slice(&self, target: &mut [u8]) {
+    msg!("packing a point object");
+    let slope_bytes = self.slope.to_le_bytes();
+    let bias_bytes = self.slope.to_le_bytes();
+    let dslope_bytes = self.slope.to_le_bytes();
+
+    //an i128 is 16 le bytes
+    for i in 0..16 {
+      target[i] = slope_bytes[i];
+      target[i + 16] = bias_bytes[i];
+      target [i + 32] = dslope_bytes[i];
+    }
+  }
+
+  fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
+    msg!("unpacking a point object");
+    if src.len() < Self::LEN {
+      msg!("point problem");
+      return Err(ProgramError::InsufficientFunds)
+    }
+    //u64::from_le_bytes(src[0..8].try_into().unwrap());
+    let slope = i128::from_le_bytes(src[0..16].try_into().unwrap());
+    let bias = i128::from_le_bytes(src[16..32].try_into().unwrap());
+    let dslope = i128::from_le_bytes(src[32..48].try_into().unwrap());
+    Ok(Self {
+      slope,
+      bias,
+      dslope
+    })
+  }
+}
+
+impl IsInitialized for Point{
+  fn is_initialized(&self) -> bool {
+    true
+  }
+}
+*/
+
 
 #[cfg(test)]
 mod tests {

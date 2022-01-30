@@ -1,33 +1,37 @@
 import {Button} from "react-bootstrap";
+import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import {
   Connection, 
   PublicKey, 
   Keypair, 
   clusterApiUrl, 
-  TransactionInstruction
+  TransactionInstruction,
+  SystemProgram,
+  SYSVAR_CLOCK_PUBKEY,
 } from "@solana/web3.js";
 import {
   SECONDS_IN_YEAR,
   TOKEN_VESTING_PROGRAM_ID,
   MAX_BOOST,
-  NEPTUNE_MINT
+  NEPTUNE_MINT,
 } from '../commands/const';
 import {
   Numberu64,
-  generateRandomSeed,
   signTransactionInstructions,
   findAssociatedTokenAddress,
   getBoost,
   getAccountInfo,
   deriveAccountInfo,
-  getMintDecimals
+  getMintDecimals,
+  transferInstructions
 } from '../commands/utils'
 import { useWallet } from '@solana/wallet-adapter-react';
 import * as anchor from "@project-serum/anchor";
 import { Schedule } from '../commands/state';
 import { 
     createVestingAccount,
-    add 
+    add,
+    buildPointerAndCalendarIx 
 } from '../commands/main';
 import axios from "axios";
 import bs58 from 'bs58';
@@ -105,18 +109,49 @@ const InitializeLockForm = (props: any) => {
   
 
   /** Function that locks the tokens */
-  const lock = async () => {
-    await checks();
 
+  //what needs to be done here?
+    //find the week simplified timestamp of right now (C)
+    //find the pointer account for the timeframe that includes right now (C)
+      //create a pointer account for the current timeframe if it doesn't exist. (one T)
+      //if the pointer account for the current timeframe doesn't exist, also create a calendar account to be stored within it. (1T)
+      //populate the new calenar account with data (1T)
+    //get the calendar account for the pointer account (C)
+    //deserialize the calendar. find out if there is an existing point for the current timestamp in the calendar (C)
+      //if there isn't an existing point in the calendar, create a new calendar account to be stored in the pointer (1T)
+        //find the week simplified timestamp of when the user's tokens will be unlocked for this schedule (C)
+    //find the pointer account for the timeframe the user's tokens will be unlocked (C)
+      //create a pointer account for the unlock timeframe if it doesn't exist (one T)
+      //if the pointer account for the unlock timeframe doesn't exist, also create a calendar account to be stored in it (1T)
+    //Final transaction: this one will.
+      //save the new lock data to the user's data account. 
+      //Update the calendar account we've found for the current time. May involve updating other calendars as well. 
+      //update dslope for the unlock time
+
+  const lock = async () => {
+
+    var allInstructions: Array<TransactionInstruction> = [];
+
+    //POINTER + CALENDAR ACCOUNT HANDLING
+    //these make sure that we have all the pointer and calendar accounts we'll need
+    //for future transactions. 
+    const pointerAndCalendarInstructions = buildPointerAndCalendarIx(
+      todaysDateInSeconds.toNumber(),
+      unlockDateInSeconds.toNumber(),
+      userPk,
+      connection
+    );
+    allInstructions = transferInstructions(pointerAndCalendarInstructions, allInstructions);
+
+    //VESTING ACCOUNT HANDLING
+    await checks();
     const schedules = createSchedules(
       unlockDate,
       amountToLock,
       decimals
     );
-
+    //get the key of the vesting acount based on the user's public key and the program's public key.
     var userBuffer = userPk.toBuffer();
-
-    //get the key of the vesting acount based on the user's public key and the program's public key. 
     const arr = await deriveAccountInfo(
       userBuffer,
       TOKEN_VESTING_PROGRAM_ID,
@@ -125,13 +160,10 @@ const InitializeLockForm = (props: any) => {
     const vestingAccountKey = arr[0];
     const vestingTokenAccountKey=arr[1];
     const seedWordBump = arr[2];
-
     console.log("vesting account key", vestingAccountKey.toString());
-
-    const account_check = await getAccountInfo(vestingAccountKey, connection);
-    var instruction: Array<TransactionInstruction> = [];
+    const vesting_account_check = await getAccountInfo(vestingAccountKey, connection);
     var dataAccountKey: any = "";
-    if (account_check == null) {
+    if (vesting_account_check == null) {
       //if the user doesn't have a Neptune vesting account, create one
       //also create a data account to store the schedule data.
       console.log("creating a vesting account for this user!");
@@ -145,7 +177,8 @@ const InitializeLockForm = (props: any) => {
 
       console.log("data account key", dataAccountKey.toString());
       console.log("schedules", schedules);
-      var instruction = await createVestingAccount(
+
+      var createVestingInstructions = await createVestingAccount(
         TOKEN_VESTING_PROGRAM_ID,
         seedWordBump,
         userPk,
@@ -161,13 +194,15 @@ const InitializeLockForm = (props: any) => {
         dataAccountSeed,
         yearsToLock
       );
+      allInstructions = transferInstructions(createVestingInstructions, allInstructions);
+
     } else {
       console.log("Adding token schedules to this user's vesting account!");
       //if the user does have a Neptune vesting account, then add the new schedules to it.
       //we'll need to create a net new data account to store the new schedule information.
 
       //get the old data account from the vesting account data. 
-      const vestingAccountData = account_check.data;
+      const vestingAccountData = vesting_account_check.data;
       const oldDataAccountKeyRaw = vestingAccountData.slice(64,96);
       const oldDataAccountKey = new PublicKey(oldDataAccountKeyRaw);
       console.log("old data account key", oldDataAccountKey.toString());
@@ -183,7 +218,7 @@ const InitializeLockForm = (props: any) => {
       console.log("new data account key", newDataAccountKey.toString());
       console.log("new data account seeds", newDataAccountSeed);
       //console.log("new data account seeds alt", bs58.encode(newDataAccountSeed));
-      var instruction = await add(
+      var userDataAccountIx = await add(
         TOKEN_VESTING_PROGRAM_ID,
         seedWordBump,
         userPk,
@@ -198,14 +233,15 @@ const InitializeLockForm = (props: any) => {
         amountToLock,
         decimals
       )
+      allInstructions = transferInstructions(userDataAccountIx, allInstructions);
     };
 
-    console.log("instruction successful", instruction);
+    console.log("instruction successful", allInstructions);
   
     const tx = await signTransactionInstructions(
       connection,
       userPk,
-      instruction,
+      allInstructions,
     );
 
     const account_check_post = await getAccountInfo(vestingAccountKey, connection);

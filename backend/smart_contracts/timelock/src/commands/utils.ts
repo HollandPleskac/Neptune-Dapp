@@ -14,9 +14,14 @@ import {
   SendOptions,
 } from '@solana/web3.js';
 import { Schedule } from './state';
-import {MAX_BOOST, MAX_LOCK_TIME, SCHEDULE_SIZE} from './const';
+import {
+  MAX_BOOST, 
+  MAX_LOCK_TIME, 
+  SCHEDULE_SIZE,
+} from './const';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import next from 'next';
+import { error } from 'console';
 
 export async function findAssociatedTokenAddress(
   walletAddress: PublicKey,
@@ -241,8 +246,8 @@ export async function deriveAccountInfo(
 
 export async function getAccountInfo(
   vestingAccountKey: PublicKey,
-  connection: Connection
-) {
+  connection: Connection,
+): AccountInfo<Buffer> {
   const check_existing = await connection.getAccountInfo(vestingAccountKey);
   return check_existing;
 }
@@ -290,6 +295,30 @@ export const signTransactionInstructions = async (
     console.log("Error:" + JSON.stringify(err));
   }
 };
+
+//adds the ixs in sourceIx array to destIx array
+export function transferInstructions(
+  sourceIx,
+  destIx
+): Array<TransactionInstructions> {
+  sourceIx.forEach((ix) => {
+    destIx.push(ix)
+  })
+  return destIx
+}
+
+//change left_ts to a buffer that's 32 bytes long so it'll work as the seed phrase in
+//the create account function I've already got in the rust program. 
+export function getPointerSeed(
+  ts: number
+): Buffer {
+  let ts_num = new Numberu64(ts);
+  let ts_buf = new Buffer.from(ts_num);
+  while (ts_buf.lengh() < 32 ) {
+    ts_buf.push(Buffer.from[0])
+  }
+  return ts_buf
+}
 
 export const createAssociatedTokenAccount = async (
   systemProgramId: PublicKey,

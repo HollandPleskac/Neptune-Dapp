@@ -16,6 +16,8 @@ use solana_program::{
 use num_traits::FromPrimitive;
 use spl_token::{instruction::transfer, state::Account};
 use core::cell::{RefMut};
+use std::collections::BTreeMap;
+use borsh::{BorshDeserialize, BorshSerialize};
 
 use crate::{
     error::VestingError,
@@ -23,9 +25,14 @@ use crate::{
     state::{
       pack_schedules_into_slice, 
       unpack_schedules, 
+      pack_calendar_into_slice,
+      unpack_calendar,
       VestingSchedule, 
       VestingScheduleHeader,
-      DataHeader
+      DataHeader,
+      Point,
+      CalendarAccountHeader,
+      PointerAccountHeader
     },
 };
 
@@ -34,6 +41,8 @@ pub struct Processor {}
 pub const MAX_BOOST: f32 = 2.5;
 //seconds in year * 4 years = seconds in 4 years: our max lock time. 
 pub const MAX_LOCK_TIME: u64 = 31557600 * 4;
+
+pub const SECONDS_IN_WEEK: u64 = 604800;
 
 impl Processor {
 
@@ -209,6 +218,12 @@ impl Processor {
 
       //return the average voting power.
       return Ok(sum / num_eligible_schedules as f32)
+    }
+
+    pub fn get_epoch(
+      ts: u64
+    ) -> u16 {
+      return (ts / SECONDS_IN_WEEK) as u16
     }
 
     pub fn process_create_vesting_account(
@@ -667,7 +682,7 @@ impl Processor {
         .ok_or(VestingError::AmountOverflow)?;
       **old_data_account.lamports.borrow_mut() = 0;
 
-      //also wipe the data from this account, since we don't need it anymore. 
+      //also wipe the data from the old data account, since we don't need it anymore. 
       //good practice according to paulx
       *old_data_account.data.borrow_mut() = &mut [];
           
@@ -712,6 +727,247 @@ impl Processor {
 
       Ok(())
     }
+
+    pub fn process_create_calendar_account(
+      vesting_program: &Pubkey,
+      accounts: &[AccountInfo],
+      calendar_seed: [u8; 32],
+      account_size: u64
+    ) -> ProgramResult {
+
+      //get accounts
+      let accounts_iter = &mut accounts.iter();
+      let fee_payer_account = next_account_info(accounts_iter)?;
+      let calendar_account = next_account_info(accounts_iter)?;
+      let system_program = next_account_info(accounts_iter)?;
+      let rent_sysvar_account = next_account_info(accounts_iter)?;
+
+      //calculate rent
+      let rent = Rent::from_account_info(rent_sysvar_account)?;
+      let rent_to_pay = rent.minimum_balance(account_size as usize);
+      msg!("this account will cost {} lamports to initialize", rent_to_pay);
+
+      //create the new account
+      Self::create_new_account(
+        fee_payer_account,
+        calendar_account,
+        calendar_seed,
+        rent_to_pay,
+        account_size as u64,
+        vesting_program,
+        system_program
+      )?;
+
+      Ok(())
+    }
+
+    pub fn process_create_pointer_account(
+      vesting_program: &Pubkey,
+      accounts: &[AccountInfo],
+      pointer_seed: [u8; 32],
+    ) -> ProgramResult {
+
+      //get accounts
+      let accounts_iter = &mut accounts.iter();
+      let fee_payer_account = next_account_info(accounts_iter)?;
+      let pointer_account = next_account_info(accounts_iter)?;
+      let system_program = next_account_info(accounts_iter)?;
+      let rent_sysvar_account = next_account_info(accounts_iter)?;
+
+      //calculate rent
+      let account_size = PointerAccountHeader::LEN;
+      let rent = Rent::from_account_info(rent_sysvar_account)?;
+      let rent_to_pay = rent.minimum_balance(account_size);
+      msg!("this account will cost {} lamports to initialize", rent_to_pay);
+
+      //create the new account
+      Self::create_new_account(
+        fee_payer_account,
+        pointer_account,
+        pointer_seed,
+        rent_to_pay,
+        account_size as u64,
+        vesting_program,
+        system_program
+      )?;
+
+      Ok(())
+    }
+
+    pub fn process_populate_pointer_account(
+      accounts: &[AccountInfo],
+    ) -> ProgramResult {
+
+      //get accounts
+      let accounts_iter = &mut accounts.iter();
+      let fee_payer_account = next_account_info(accounts_iter)?;
+      let pointer_account = next_account_info(accounts_iter)?;
+      let calendar_account = next_account_info(accounts_iter)?;
+
+      let pointer_header = PointerAccountHeader{
+        is_initialized: true,
+        calendar_account: *calendar_account.key
+      };
+      let mut pointer_data = pointer_account.data.borrow_mut();
+
+      //don't need a slice since this is all the data that will be in the 
+      //pointer account
+      pointer_header.pack_into_slice(&mut pointer_data);
+
+      Ok(())
+    }
+
+    
+    
+    //this code will initialize the data for a calendar account
+    pub fn process_populate_calendar_account_test(
+      _vesting_program: &Pubkey,
+      accounts: &[AccountInfo],
+    ) -> ProgramResult {
+      //get accounts
+      let accounts_iter = &mut accounts.iter();
+      let _owner_account = next_account_info(accounts_iter)?; //pubkey of vesting account owner
+      let calendar_account = next_account_info(accounts_iter)?;
+      let clock_sysvar_account = next_account_info(accounts_iter)?;
+
+      let clock = Clock::from_account_info(&clock_sysvar_account)?;
+      let current_time = clock.unix_timestamp as u64;
+      msg!("current time is {}", current_time);
+
+      let mut calendar_data = calendar_account.data.borrow_mut();
+
+      let point_zero = Point{
+        slope: 12345,
+        bias: 6789,
+        dslope: 4387
+      };
+      let mut calendar = BTreeMap::<u16,Point>::new();
+      let epoch = Self::get_epoch(current_time);
+      calendar.insert(epoch, point_zero);
+      let calendar_bytes_one = calendar.try_to_vec().unwrap();
+      let data_len_one = calendar_bytes_one.len();
+      msg!("length of btree with one entry is {}", data_len_one);
+
+      let point_one = Point{
+        slope: 12341325,
+        bias: 6783249,
+        dslope: 4384234147
+      };
+      calendar.insert(epoch + 1, point_one);
+      let calendar_bytes_two = calendar.try_to_vec().unwrap();
+      let data_len_two = calendar_bytes_two.len();
+      msg!("length of btree with two entries is {}", data_len_two);
+
+      let point_two= Point{
+        slope: 1234123412345,
+        bias: 67813243429,
+        dslope: 42343434387
+      };
+      calendar.insert(epoch + 2, point_two);
+      let calendar_bytes_three = calendar.try_to_vec().unwrap();
+      let data_len_three = calendar_bytes_three.len();
+      msg!("length of btree with three entries is {}", data_len_three);
+      
+      let calendar_header = CalendarAccountHeader {
+        is_initialized: true,
+        calendar_length: 3 as u32,
+      };
+
+      calendar_header.pack_into_slice(&mut calendar_data[..CalendarAccountHeader::LEN]);
+      msg!("we've packed our header");
+      let offset: usize = data_len_three as usize + CalendarAccountHeader::LEN;
+      pack_calendar_into_slice(
+        calendar,
+        &mut calendar_data[CalendarAccountHeader::LEN..offset]
+      );
+      msg!("we've packed a calendar object with three points stored in it.");
+
+
+      Ok(())
+    }
+    
+    
+    
+    //this one will take one that already exists and edit it. 
+    pub fn process_unpack_and_fill_calendar_account_test(
+      _vesting_program: &Pubkey,
+      accounts: &[AccountInfo],
+      iterations: u64
+    ) -> ProgramResult {
+      //get accounts
+      let accounts_iter = &mut accounts.iter();
+      let _owner_account = next_account_info(accounts_iter)?; //pubkey of vesting account owner
+      let calendar_account = next_account_info(accounts_iter)?;
+      let clock_sysvar_account = next_account_info(accounts_iter)?;
+
+      let clock = Clock::from_account_info(&clock_sysvar_account)?;
+      let current_time = clock.unix_timestamp as u64;
+      let mut epoch = Self::get_epoch(current_time);
+
+      /*
+      let packed_state = &vesting_account.data;
+        let header_state =
+            VestingScheduleHeader::unpack(&packed_state.borrow()[..VestingScheduleHeader::LEN])?;
+      */
+
+      //get the header
+      let header_len = CalendarAccountHeader::LEN;
+      let mut calendar_data = calendar_account.data.borrow_mut();
+      let mut calendar_state = CalendarAccountHeader::unpack(
+        &calendar_data[..header_len]
+      )?;
+
+      //get the exact section of byte data that represents our calendar
+      //let mut num_of_calendars = calendar_state.calendar_length;
+      let mut num_of_calendars = 50;
+      let offset = 4 + (50 * num_of_calendars) + (header_len as u32);
+      let calendar_bytes = 
+        &calendar_data[header_len..(offset as usize)];
+      msg!("header len {}", header_len);
+      msg!("num of cal {}", num_of_calendars);
+      msg!("len cal bytes {}", calendar_bytes.len());
+      let mut calendar = unpack_calendar(calendar_bytes)?;
+
+      /*
+      let time: u64 = 1636105529;
+      let point_one = calendar.get(&time).unwrap();
+      msg!("bias of point one {}", point_one.bias);
+      */
+      
+      //let's fill this account up!
+      let mut i = 0;
+      while i < iterations {
+        let point_three= Point{
+          slope: 1,
+          bias: 2,
+          dslope: 3
+        };
+        epoch += 4;
+        calendar.insert(epoch, point_three);
+        //TODO - don't increment this unless we're adding a new point
+        num_of_calendars += 1;
+        i += 1;
+      }
+      msg!("new num of calendars is {}", num_of_calendars);
+
+      //need to save the new size of the calendar account here
+      calendar_state.calendar_length = num_of_calendars;
+      calendar_state.pack_into_slice(&mut calendar_data[..header_len]);
+      msg!("packed calendar state");
+
+      //now store the calendars
+      pack_calendar_into_slice(
+        calendar, 
+        &mut calendar_data[CalendarAccountHeader::LEN..]
+      );
+      Ok(())
+    }
+    
+    
+    
+    
+    
+    
 
     pub fn process_instruction(
         vesting_program: &Pubkey,
@@ -788,6 +1044,31 @@ impl Processor {
                 schedules,
               )
             }
+            VestingInstruction::CreateCalendarAccount {
+              calendar_account_seed,
+              account_size
+            } => {
+              Self::process_create_calendar_account(
+                vesting_program,
+                accounts,
+                calendar_account_seed,
+                account_size
+              )
+            }
+            VestingInstruction::CreatePointerAccount{
+              pointer_account_seed
+            } => {
+              Self::process_create_pointer_account(
+                vesting_program,
+                accounts,
+                pointer_account_seed
+              )
+            }
+            VestingInstruction::PopulatePointerAccount{} =>{
+              Self::process_populate_pointer_account(
+                accounts
+              )
+            }
             VestingInstruction::TestOnChainVotingPower {
               vesting_account_seed,
               client_voting_power
@@ -798,6 +1079,23 @@ impl Processor {
                 accounts,
                 vesting_account_seed,
                 client_voting_power,
+              )
+            }
+            VestingInstruction::TestPopulateCalendarAccount{}=> {
+              msg!("populating a point object into an account");
+              Self::process_populate_calendar_account_test(
+                vesting_program,
+                accounts
+              )
+            }
+            VestingInstruction::TestUnpackAndPopulateCalendarAccount{
+              iterations
+            } => {
+              msg!("unpacking and populating a point object into an account");
+              Self::process_unpack_and_fill_calendar_account_test(
+                vesting_program,
+                accounts,
+                iterations
               )
             }
         }
