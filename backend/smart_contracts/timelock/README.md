@@ -1,5 +1,9 @@
 # basic timelock application
 
+THIS BRANCH HAS CODE FOR STORING POINT OBJECTS ON CHAIN IN A BTREE FORMAT THAT I'VE DECIDED TO SCRAP IN FAVOR OF A MORE COMPUTATIONALLY EFFICIENT STORAGE MECHANISM.
+
+I'M KEEPING THE CODE FOR REFERENCE BECAUSE LEARNING HOW TO SERIALIZE AND DESERIALIZE BTREE OBJECTS IN RUST AND TYPESCRIPT WAS A PAIN, AND I WANT TO HAVE THIS CODE IN CASE I NEED TO DO THAT AGAIN SOMEDAY.
+
 This repo builds a frontend to [Bonfida's token vesting program](https://github.com/Bonfida/token-vesting) using the nextjs scaffold [provided by thuglabs](https://github.com/thuglabs/create-dapp-solana-nextjs). It allows a user to lock a set amount of tokens from a given mint account for a set amount of time. Once the specified time has past, the same user will be able to claim the tokens again.
 
 The program is deployed to Solana devnet. Its current program ID is `HGJnXzjzsMGtgQ1bdAYqyjZ9paNfPZ2aYSrXtZZR2JyA`. This program ID is hard coded for the app to use in `src/commands/const`.
