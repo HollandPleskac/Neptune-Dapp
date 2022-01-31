@@ -141,16 +141,26 @@ pub enum VestingInstruction {
       schedules: Vec<VestingSchedule>, 
     },
 
+    //TODO - will the seed actually be this long?
     CreateCalendarAccount{
       calendar_account_seed: [u8; 32],
-      account_size: u64
     },
 
     CreatePointerAccount{
       pointer_account_seed: [u8; 32],
     },
+
+    PopulatePointerAccount{},
+
+    //TODO - will the seed actually be this long?
+    CreateDslopeAccount{
+      dslope_account_seed: [u8; 32],
+    },     
     
-    PopulatePointerAccount{}, 
+    CreateNewCalendarAccount{
+      new_calendar_account_seed: [u8; 32],
+      bytes_to_add: u32
+    },
 
     // 1. [signer] owner's account
     // 2. [] vesting account
@@ -158,11 +168,6 @@ pub enum VestingInstruction {
       vesting_account_seed: [u8; 32],
       client_voting_power: f32,
     },
-    TestPopulateCalendarAccount {},
-
-    TestUnpackAndPopulateCalendarAccount{
-      iterations: u64
-    }
 }
 
 impl VestingInstruction {
@@ -332,18 +337,22 @@ impl VestingInstruction {
                 .get(..32)
                 .and_then(|slice| slice.try_into().ok())
                 .unwrap();
-              let account_size = rest
-                .get(32..)
-                .and_then(|slice| slice.try_into().ok())
-                .map(u64::from_le_bytes)
-                .ok_or(InvalidInstruction)?; 
               Self::CreateCalendarAccount{
                 calendar_account_seed,
-                account_size
               }              
             }
+              //create a dslope account
+              6 => {
+                let dslope_account_seed: [u8; 32] = rest
+                  .get(..32)
+                  .and_then(|slice| slice.try_into().ok())
+                  .unwrap();
+                Self::CreateDslopeAccount{
+                  dslope_account_seed,
+                }              
+              }
             //create a pointer account
-            6 => {
+            7 => {
               let pointer_account_seed: [u8; 32] = rest
                 .get(..32)
                 .and_then(|slice| slice.try_into().ok())
@@ -353,10 +362,26 @@ impl VestingInstruction {
               }              
             }
             //populate a pointer account
-            7 => {
+            8 => {
               Self::PopulatePointerAccount{
 
               }
+            }
+            //create a new calendar account
+            9 => {
+              let new_calendar_account_seed: [u8; 32] = rest
+                .get(..32)
+                .and_then(|slice| slice.try_into().ok())
+                .unwrap();
+              let bytes_to_add = rest
+                .get(32..36)
+                .and_then(|slice| slice.try_into().ok())
+                .map(u32::from_le_bytes)
+                .ok_or(InvalidInstruction)?;
+              Self::CreateNewCalendarAccount{
+                new_calendar_account_seed,
+                bytes_to_add
+              } 
             }
             //test on chain voting power   
             23 => {
@@ -372,19 +397,6 @@ impl VestingInstruction {
               Self::TestOnChainVotingPower {
                 vesting_account_seed,
                 client_voting_power,
-              }
-            }
-            25 => {
-              Self::TestPopulateCalendarAccount{}
-            }
-            26 => {
-              let iterations = rest
-              .get(..8)
-              .and_then(|slice| slice.try_into().ok())
-              .map(u64::from_le_bytes)
-              .ok_or(InvalidInstruction)?;
-              Self::TestUnpackAndPopulateCalendarAccount{
-                iterations
               }
             }
             _ => {
@@ -460,20 +472,32 @@ impl VestingInstruction {
             }
             Self::CreateCalendarAccount{
               calendar_account_seed,
-              account_size
             } => {
               buf.push(5);
               buf.extend_from_slice(calendar_account_seed);
-              buf.extend(&account_size.to_le_bytes());
+            }
+            Self::CreateDslopeAccount{
+              dslope_account_seed
+            } => {
+              buf.push(6);
+              buf.extend_from_slice(dslope_account_seed);
             }
             Self::CreatePointerAccount{
               pointer_account_seed
             } => {
-              buf.push(6);
+              buf.push(7);
               buf.extend_from_slice(pointer_account_seed);
             }
             Self::PopulatePointerAccount{} => {
-              buf.push(7);
+              buf.push(8);
+            }
+            Self::CreateNewCalendarAccount{
+              new_calendar_account_seed,
+              bytes_to_add
+            } => {
+              buf.push(9);
+              buf.extend_from_slice(new_calendar_account_seed);
+              buf.extend_from_slice(&bytes_to_add.to_le_bytes())
             }
             Self::TestOnChainVotingPower{
               vesting_account_seed,
@@ -482,15 +506,6 @@ impl VestingInstruction {
               buf.push(23);
               buf.extend_from_slice(vesting_account_seed);
               buf.extend_from_slice(&client_voting_power.to_le_bytes());
-            }
-            Self::TestPopulateCalendarAccount{} => {
-              buf.push(25);
-            }
-            Self::TestUnpackAndPopulateCalendarAccount{
-              iterations
-            } => {
-              buf.push(26);
-              buf.extend_from_slice(&iterations.to_le_bytes());
             }
         };
         buf

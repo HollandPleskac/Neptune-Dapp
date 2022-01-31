@@ -13,6 +13,7 @@ import {
   SECONDS_IN_WEEK,
   ZERO_EPOCH
  } from './const';
+import { bytes } from '@project-serum/anchor/dist/cjs/utils';
 
 export enum Instruction {
   Init,
@@ -394,12 +395,10 @@ export function createCalendarIx(
   userPk: PublicKey,
   cal_account: PublicKey,
   seed: Array<Buffer | Uint8Array>,
-  cal_size: number
 ): TransactionInstruction {
   let buffers = [
     Buffer.from(Int8Array.from([5]).buffer), //len 1
     Buffer.concat(seed), //len 32
-    new Numberu64(cal_size).toBuffer() //len 8
   ];
   const data = Buffer.concat(buffers);
   const keys = [
@@ -436,7 +435,8 @@ export function newPointerIx(
   userPk: PublicKey,
   pointer_account: PublicKey,
   seed: Array<Buffer| Uint8Array>,
-  cal_account: PublicKey
+  cal_account: PublicKey,
+  dslope_account: PublicKey
 ): Array<TransactionInstruction> {
   let ixs = [
     createPointerIx(
@@ -447,10 +447,51 @@ export function newPointerIx(
     populatePointerIx(
       userPk,
       pointer_account,
-      cal_account
+      cal_account,
+      dslope_account
     )
   ]
   return ixs
+}
+
+export function createDslopeIx(
+  userPk: PublicKey,
+  dslope_account: PublicKey,
+  seed: Array<Buffer | Uint8Array>,
+): TransactionInstruction {
+  let buffers = [
+    Buffer.from(Int8Array.from([6]).buffer), //len 1
+    Buffer.concat(seed), //len 32 (?)
+  ];
+  const data = Buffer.concat(buffers);
+  const keys = [
+    {
+      pubkey: userPk,
+      isSigner: true,
+      isWritable: false,
+    },
+    {
+      pubkey: dslope_account,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: SystemProgram.programId,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: SYSVAR_RENT_PUBKEY,
+      isSigner: false,
+      isWritable: false,
+    },
+  ]
+
+  return new TransactionInstruction({
+    keys,
+    programId: TOKEN_VESTING_PROGRAM_ID,
+    data,
+  });
 }
 
 export function createPointerIx(
@@ -459,7 +500,7 @@ export function createPointerIx(
   seed: Array<Buffer | Uint8Array>,
 ): TransactionInstruction {
   let buffers = [
-    Buffer.from(Int8Array.from([6]).buffer), //len 1
+    Buffer.from(Int8Array.from([7]).buffer), //len 1
     Buffer.concat(seed), //len 32
   ];
   const data = Buffer.concat(buffers);
@@ -496,10 +537,11 @@ export function createPointerIx(
 export function populatePointerIx(
   userPk: PublicKey,
   pointer_account: PublicKey,
-  cal_account: PublicKey
+  cal_account: PublicKey,
+  dslope_account: PublicKey
 ): TransactionInstruction {
   let buffers = [
-    Buffer.from(Int8Array.from([7]).buffer), //len 1
+    Buffer.from(Int8Array.from([8]).buffer), //len 1
   ];
   const data = Buffer.concat(buffers);
   const keys = [
@@ -515,6 +557,65 @@ export function populatePointerIx(
     },
     {
       pubkey: cal_account,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: dslope_account,
+      isSigner: false,
+      isWritable: false,
+    },
+  ]
+
+  return new TransactionInstruction({
+    keys,
+    programId: TOKEN_VESTING_PROGRAM_ID,
+    data,
+  });
+}
+
+export function newCalendarIx(
+  userPk: PublicKey,
+  pointer_account: PublicKey,
+  new_cal_account: PublicKey,
+  new_cal_seed:  Array<Buffer | Uint8Array>,
+  old_cal_account: PublicKey,
+  bytes_to_add: number
+): TransactionInstruction {
+  let buffers = [
+    Buffer.from(Int8Array.from([9]).buffer), //len 1
+    Buffer.concat(new_cal_seed), //len 32
+    Buffer.from(Int8Array.from([bytes_to_add]).buffer)
+  ];
+  const data = Buffer.concat(buffers);
+  const keys = [
+    {
+      pubkey: userPk,
+      isSigner: true,
+      isWritable: false,
+    },
+    {
+      pubkey: pointer_account,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: new_cal_account,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: old_cal_account,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: SystemProgram.programId,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: SYSVAR_RENT_PUBKEY,
       isSigner: false,
       isWritable: false,
     },

@@ -116,6 +116,70 @@ export class Numberu32 extends BN {
   }
 }
 
+export class Numberi128 extends BN {
+  /**
+   * Convert to Buffer representation
+   */
+  toBuffer(): Buffer {
+    const a = super.toArray().reverse();
+    const b = Buffer.from(a);
+    if (b.length === 16) {
+      return b;
+    }
+    assert(b.length < 16, 'Numberu32 too large');
+
+    const zeroPad = Buffer.alloc(16);
+    b.copy(zeroPad);
+    return zeroPad;
+  }
+
+  /**
+   * Construct a Numberu32 from Buffer representation
+   */
+  static fromBuffer(buffer): any {
+    assert(buffer.length === 16, `Invalid buffer length: ${buffer.length}`);
+    return new BN(
+      [...buffer]
+        .reverse()
+        .map(i => `00${i.toString(16)}`.slice(-2))
+        .join(''),
+      16,
+    );
+  }
+}
+
+export class Numberu16 extends BN {
+  /**
+   * Convert to Buffer representation
+   */
+  toBuffer(): Buffer {
+    const a = super.toArray().reverse();
+    const b = Buffer.from(a);
+    if (b.length === 2) {
+      return b;
+    }
+    assert(b.length < 2, 'Numberu32 too large');
+
+    const zeroPad = Buffer.alloc(2);
+    b.copy(zeroPad);
+    return zeroPad;
+  }
+
+  /**
+   * Construct a Numberu32 from Buffer representation
+   */
+  static fromBuffer(buffer): any {
+    assert(buffer.length === 2, `Invalid buffer length: ${buffer.length}`);
+    return new BN(
+      [...buffer]
+        .reverse()
+        .map(i => `00${i.toString(16)}`.slice(-2))
+        .join(''),
+      16,
+    );
+  }
+}
+
 // Connection
 
 const ENDPOINTS = {
@@ -314,10 +378,55 @@ export function getPointerSeed(
 ): Buffer {
   let ts_num = new Numberu64(ts);
   let ts_buf = new Buffer.from(ts_num);
-  while (ts_buf.lengh() < 32 ) {
+  while (ts_buf.length() < 32 ) {
     ts_buf.push(Buffer.from[0])
   }
   return ts_buf
+}
+
+//takes an arbitrary unix timestamp and returns the first timestamp of the era the input timestamp
+//belongs to 
+export function getEra(
+  ts:number
+): number {
+  //first, get the timestamp for the pointer account that will hold info for this point in time
+  //starts at the protocol's zero epoch. iterates through the timestamps for the timeframes each pointer 
+  //account represents until we find the timestamp where our parameter fits.
+  //for our purposes, zero epoch of our protocol is 1/6/22 0000 GMT
+  const zero_epoch_ts = SECONDS_IN_WEEK * ZERO_EPOCH;
+  const seconds_in_epoch = SECONDS_IN_WEEK * WEEKS_IN_EPOCH
+  var left_ts = zero_epoch_ts;
+  var right_ts = zero_epoch_ts + seconds_in_epoch;
+  var check = true
+  while (check) {
+    if (left_ts <= ts && ts < right_ts) {
+      check = false
+      break
+    } else {
+      left_ts += seconds_in_epoch
+      right_ts += seconds_in_epoch
+    }
+  }
+  return left_is
+}
+
+export function getEpochFromTs(
+  ts: number
+): number {
+  
+}
+
+export function getSeedWord(
+  seeds: any
+): Buffer {
+  const seed_bytes = seeds.map((s) => {
+    if (typeof s == "string") {
+      return Buffer.from(s);
+    } else if ("publicKey" in s) {
+      return s.publicKey.toBytes();
+    }
+  });
+  return seed_bytes
 }
 
 export const createAssociatedTokenAccount = async (

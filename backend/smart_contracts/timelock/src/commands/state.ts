@@ -1,6 +1,6 @@
 import { PublicKey, Struct } from '@solana/web3.js';
 import { deserialize } from 'v8';
-import { Numberu64, Numberu32 } from './utils';
+import { Numberu64, Numberu32, Numberu16, Numberi128 } from './utils';
 import { deserialize as borsh_deserialize } from 'borsh'
 
 export class Schedule {
@@ -97,16 +97,27 @@ class Primitive {
 export class Point {
   slope!: number;
   bias!: number;
-  dslope!: number;
+  epoch!: number;
 
   constructor(
     slope: number,
     bias: number,
-    dslope: number,
+    epoch: number,
   ) {
     this.slope = slope;
     this.bias= bias;
-    this.dslope = dslope;
+    this.epoch = epoch;
+  }
+
+  static unpack(buf: Buffer): Point {
+    const slope = Numberi128.fromBuffer(buf.slice(0, 16)).toNumber();
+    const bias = Numberi128.fromBuffer(buf.slice(16, 32)).toNumber();
+    const epoch = Numberu16.fromBuffer(buf.slice(32, 34)).toNumber();
+    return new Point(
+      slope,
+      bias,
+      epoch
+    )
   }
 }
 

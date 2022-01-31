@@ -114,8 +114,8 @@ const InitializeLockForm = (props: any) => {
     //find the week simplified timestamp of right now (C)
     //find the pointer account for the timeframe that includes right now (C)
       //create a pointer account for the current timeframe if it doesn't exist. (one T)
-      //if the pointer account for the current timeframe doesn't exist, also create a calendar account to be stored within it. (1T)
-      //populate the new calenar account with data (1T)
+      //if the pointer account for the current timeframe doesn't exist, also create a calendar account and a schedule account to be stored within it. (1T)
+      //populate the new calenar account and schedule with data (1T each). For the schedule account, just load it with an epoch's worth of data. 
     //get the calendar account for the pointer account (C)
     //deserialize the calendar. find out if there is an existing point for the current timestamp in the calendar (C)
       //if there isn't an existing point in the calendar, create a new calendar account to be stored in the pointer (1T)
@@ -135,7 +135,11 @@ const InitializeLockForm = (props: any) => {
     //POINTER + CALENDAR ACCOUNT HANDLING
     //these make sure that we have all the pointer and calendar accounts we'll need
     //for future transactions. 
-    const pointerAndCalendarInstructions = buildPointerAndCalendarIx(
+    const [
+      pointerAndCalendarInstructions,
+      currentPointerAccount,
+      unlockPointerAccount
+    ] = await buildPointerAndCalendarIx(
       todaysDateInSeconds.toNumber(),
       unlockDateInSeconds.toNumber(),
       userPk,
