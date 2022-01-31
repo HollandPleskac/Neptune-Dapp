@@ -19,6 +19,7 @@ module.exports = {
         body: "77rem",
         dashboardLeft: "44.5rem",
         dashboardRight: "31.5rem",
+        "104px": "6.5rem"
       }
     },
   },

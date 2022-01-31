@@ -1,3 +1,7 @@
+import WalletDetails from './WalletDetails'
+import RangeBar from '../../common/RangeBar'
+import PercentButtons from './PercentButtons'
+import InputPicker from '../../common/InputPicker'
 import SettingsIcon from './../../../assets/SettingsIcon'
 import styles from './rightDetails.module.scss'
 
@@ -18,6 +22,10 @@ const RightDetails = () => {
         </div>
       </div>
       <hr className={styles['neptune-right-details__hr']} />
+      <WalletDetails />
+      <InputPicker pickerArray={null} placeholder={250} />
+      <PercentButtons />
+      <RangeBar setValue={() => {}} />
     </div>
   )
 }
