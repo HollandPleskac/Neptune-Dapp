@@ -1,5 +1,5 @@
 import TopStats from './TopStats'
-import DonutGraph from './DonutGraph'
+import Graph from './Graph'
 import styles from './topDetails.module.scss'
 const TopDetails = () => {
   return (
@@ -15,7 +15,7 @@ const TopDetails = () => {
           - <br />
           18,778.90 SOL
         </div>
-        <DonutGraph />
+        <Graph />
         <div style={{marginLeft: '3rem'}}>
           Total Borrowed <br />
           $1,456,069 <br />

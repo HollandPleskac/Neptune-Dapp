@@ -2,7 +2,7 @@ import type { NextPage } from 'next'
 import Head from 'next/head'
 import Navbar from '../components/common/Navbar'
 import Stats from '../components/LendAndBorrow/Stats'
-import styles from '../styles/Home.module.css'
+import RightDetails from '../components/LendAndBorrow/RightDetails'
 
 const Home: NextPage = () => {
   return (
@@ -18,9 +18,7 @@ const Home: NextPage = () => {
         <h5 >{`< Back / Lend & Borrow / SOL`}</h5>
         <main className="flex justify-between">
           <Stats />
-          <div className="w-dashboardRight bg-dark-secondary rounded-2xl p-8">
-            test2
-          </div>
+          <RightDetails />
         </main>
       </div>
 
