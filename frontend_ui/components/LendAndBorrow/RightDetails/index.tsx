@@ -1,4 +1,6 @@
+import Button from '../../common/Button'
 import WalletDetails from './WalletDetails'
+import BottomDetails from './BottomDetails'
 import RangeBar from '../../common/RangeBar'
 import PercentButtons from './PercentButtons'
 import InputPicker from '../../common/InputPicker'
@@ -25,7 +27,9 @@ const RightDetails = () => {
       <WalletDetails />
       <InputPicker pickerArray={null} placeholder={250} />
       <PercentButtons />
-      <RangeBar setValue={() => {}} />
+      <RangeBar indicatorPercent={30} />
+      <BottomDetails />
+      <Button text='Borrow SOL' color='bg-blue-light' className={'neptune-button__borrow-sol'} />
     </div>
   )
 }
