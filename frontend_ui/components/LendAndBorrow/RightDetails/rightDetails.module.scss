@@ -1,0 +1,8 @@
+@use '/styles/common.module.scss' as *;
+
+.neptune-right-details {
+  &__hr {
+    @include pale-hr;
+    @apply mt-8;
+  }
+}

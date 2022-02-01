@@ -1,0 +1,7 @@
+.neptune-right-side-bottom {
+  &__details {
+    &:last-of-type {
+      @apply mb-0;
+    }
+  }
+}

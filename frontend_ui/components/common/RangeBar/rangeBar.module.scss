@@ -1,0 +1,23 @@
+.neptune-range-bar {
+  &__has-pointer {
+    &:after {
+      content: "";
+      width: 0.5px;
+      height: 17px;
+      background-color: #ED6564;
+      @apply block;
+      @apply absolute;
+      @apply mx-auto;
+      @apply right-0;
+      @apply left-0;
+      @apply z-10;
+    }
+  }
+  &__liquidation {
+    left: 69%; // actually 75% on the number indicator
+  }
+  &__triangle-pointer {
+    right: -3px;
+    top: 9px;
+  }
+}
