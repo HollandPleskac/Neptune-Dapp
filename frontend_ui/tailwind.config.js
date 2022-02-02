@@ -16,6 +16,9 @@ module.exports = {
         },
         blue: {
           light: "#3E66F9"
+        },
+        gray: {
+          light: "#353639"
         }
       },
       width: {
@@ -23,6 +26,9 @@ module.exports = {
         dashboardLeft: "44.5rem",
         dashboardRight: "31.5rem",
         "104px": "6.5rem"
+      },
+      padding: {
+        '2px': '2px'
       },
       fontSize: {
         "10px": "0.63rem",

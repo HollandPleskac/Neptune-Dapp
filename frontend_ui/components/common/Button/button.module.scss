@@ -6,4 +6,16 @@
     font-weight: bold;
     margin-top: 24px;
   }
+  &__bg-gray-light-small {
+    width: 36px;
+    height: 26px;
+    border-radius: 4px;
+    @apply bg-gray-light;
+  }
+  &__bg-gray-light-small-active {
+    width: 36px;
+    height: 26px;
+    border-radius: 4px;
+    @apply bg-dark-primary;
+  }
 }

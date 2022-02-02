@@ -10,7 +10,6 @@ html, body {
   color: #fff;
   height: 100%;
   min-height: 100%;
-  min-width: 100vw;
   @apply bg-dark-primary;
 }
 
