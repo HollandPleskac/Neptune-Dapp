@@ -1,12 +1,15 @@
+import cx from 'classnames';
+import { useState } from 'react';
+import Button from '../../../common/Button';
 import LineChart from './../../../common/LineChart';
 
 const lineChartDataDashboard = [
   {
-    name: "Mobile app testsets",
+    name: "Deposit APY",
     data: [100, 200, 150, 160, 180, 200, 210],
   },
   {
-    name: "Websites",
+    name: "Borrow APY",
     data: [100, 50, 80, 60, 40, 30, 10],
   },
 ];
@@ -86,12 +89,80 @@ const lineChartOptionsDashboard = {
   colors: ["#2CD9FF", "#582CFF"],
 };
 
+const historyButtons = ['1D', '7D', '1M', '3M', '6M', '1Y']
+
 const BottomDetails = () => {
+  const [historyButtons, setHistoryButtons] = useState([
+    {
+      text: '1D',
+      active: false
+    },
+    {
+      text: '7D',
+      active: false
+    },
+    {
+      text: '1M',
+      active: true
+    },
+    {
+      text: '3M',
+      active: false
+    },
+    {
+      text: '6M',
+      active: false
+    },
+    {
+      text: '1Y',
+      active: false
+    },
+  ])
+
+  const handleClickHistoryButton = (activeButton: { text: string, active: boolean }) => {
+    const newButtons = historyButtons.map((hb) => {
+      if (hb.text === activeButton.text) {
+        return {
+          ...hb,
+          active: true
+        }
+      }
+      return {
+        ...hb,
+        active: false
+      }
+    })
+    setHistoryButtons(newButtons)
+  }
+
   return (
-    <LineChart
-      lineChartData={lineChartDataDashboard}
-      lineChartOptions={lineChartOptionsDashboard}
-    />
+    <>
+      <div className='flex justify-between w-full'>
+        <span>Historical APY</span>
+        <div className='flex bg-gray-light rounded p-2px'>
+          {
+            historyButtons.map((hb, i) => (
+              <Button key={i} text={hb.text} onClick={() => handleClickHistoryButton(hb)} 
+                className={cx({
+                  'neptune-button__bg-gray-light-small': !hb.active,
+                  'neptune-button__bg-gray-light-small-active': hb.active,
+                })} />
+            ))
+          }
+        </div>
+      </div>
+      <LineChart
+        lineChartData={lineChartDataDashboard}
+        lineChartOptions={lineChartOptionsDashboard}
+      />
+      <div className='flex justify-between w-full'>
+        <div className='flex'>
+          <span className='mr-4'>Deposit APY</span>
+          <span>Borrow APY</span>
+        </div>
+        <div>Rewards APR Details</div>
+      </div>
+    </>
   )
 }
 
