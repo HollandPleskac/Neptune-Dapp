@@ -19,5 +19,5 @@ export const MAX_BOOST = 2.5;
 export const SCHEDULE_SIZE = 16;
 export const SECONDS_IN_WEEK = 604_800;
 export const WEEKS_IN_ERA = 26 //start with an epoch of 6 months... see where that gets us
-export const ZERO_EPOCH = 2714;
+export const ZERO_EPOCH = 2714; //this will be the first epoch of our protocol. 1/6/22 0000 GMT
 export const CAL_ENTRY_SIZE = 34;

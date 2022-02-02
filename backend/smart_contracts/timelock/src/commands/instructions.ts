@@ -84,6 +84,16 @@ export function populateVestingAccountIx(
   sourceTokenAccountKey: PublicKey,
   destinationTokenAccountKey: PublicKey,
   mintAddress: PublicKey,
+  windowStartPointer: PublicKey,
+  windowStartCal: PublicKey,
+  windowStartDslope: PublicKey,
+  windowEndPointer: PublicKey,
+  windowEndCal: PublicKey,
+  windowEndDslope: PublicKey,
+  newUnlockPointer: PublicKey,
+  newUnlockDslope: PublicKey,
+  oldUnlockPointer: PublicKey,
+  oldUnlockDslope: PublicKey,
   schedules: Array<Schedule>,
   seeds: Array<Buffer | Uint8Array>,
   dataAccountSeeds: Array<Buffer | Uint8Array>,
@@ -135,6 +145,61 @@ export function populateVestingAccountIx(
     },
     {
       pubkey: mintAddress,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: windowStartPointer,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: windowStartCal,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: windowStartDslope,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: windowEndPointer,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: windowEndCal,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: windowEndDslope,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: newUnlockPointer,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: newUnlockDslope,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: oldUnlockPointer,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: oldUnlockDslope,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: SYSVAR_CLOCK_PUBKEY,
       isSigner: false,
       isWritable: false,
     },
@@ -277,6 +342,16 @@ export function populateNewDataAccountInstruction(
   oldDataAccountKey: PublicKey,
   newDataAccountKey: PublicKey,
   newDataAccountSeed: Array<Buffer | Uint8Array>,
+  windowStartPointer: PublicKey,
+  windowStartCal: PublicKey,
+  windowStartDslope: PublicKey,
+  windowEndPointer: PublicKey,
+  windowEndCal: PublicKey,
+  windowEndDslope: PublicKey,
+  newUnlockPointer: PublicKey,
+  newUnlockDslope: PublicKey,
+  oldUnlockPointer: PublicKey,
+  oldUnlockDslope: PublicKey,
   amountToLock: number,
   decimals: any
 
@@ -331,6 +406,61 @@ export function populateNewDataAccountInstruction(
     },
     {
       pubkey: TOKEN_PROGRAM_ID,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: windowStartPointer,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: windowStartCal,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: windowStartDslope,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: windowEndPointer,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: windowEndCal,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: windowEndDslope,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: newUnlockPointer,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: newUnlockDslope,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: oldUnlockPointer,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: oldUnlockDslope,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: SYSVAR_CLOCK_PUBKEY,
       isSigner: false,
       isWritable: false,
     },
@@ -395,10 +525,12 @@ export function createCalendarIx(
   userPk: PublicKey,
   cal_account: PublicKey,
   seed: Array<Buffer | Uint8Array>,
+  accountSize: number,
 ): TransactionInstruction {
   let buffers = [
     Buffer.from(Int8Array.from([5]).buffer), //len 1
     Buffer.concat(seed), //len 32
+    new Numberu64(accountSize).toBuffer()
   ];
   const data = Buffer.concat(buffers);
   const keys = [
@@ -574,18 +706,16 @@ export function populatePointerIx(
   });
 }
 
-export function newCalendarIx(
+export function populateNewCalendarIx(
   userPk: PublicKey,
   pointer_account: PublicKey,
   new_cal_account: PublicKey,
   new_cal_seed:  Array<Buffer | Uint8Array>,
   old_cal_account: PublicKey,
-  bytes_to_add: number
 ): TransactionInstruction {
   let buffers = [
     Buffer.from(Int8Array.from([9]).buffer), //len 1
     Buffer.concat(new_cal_seed), //len 32
-    Buffer.from(Int8Array.from([bytes_to_add]).buffer)
   ];
   const data = Buffer.concat(buffers);
   const keys = [
@@ -606,16 +736,6 @@ export function newCalendarIx(
     },
     {
       pubkey: old_cal_account,
-      isSigner: false,
-      isWritable: false,
-    },
-    {
-      pubkey: SystemProgram.programId,
-      isSigner: false,
-      isWritable: false,
-    },
-    {
-      pubkey: SYSVAR_RENT_PUBKEY,
       isSigner: false,
       isWritable: false,
     },

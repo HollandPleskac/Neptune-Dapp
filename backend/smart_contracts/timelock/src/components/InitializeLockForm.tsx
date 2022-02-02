@@ -23,7 +23,8 @@ import {
   getAccountInfo,
   deriveAccountInfo,
   getMintDecimals,
-  transferInstructions
+  transferInstructions,
+  getZeroSchedule,
 } from '../commands/utils'
 import { useWallet } from '@solana/wallet-adapter-react';
 import * as anchor from "@project-serum/anchor";
@@ -132,28 +133,43 @@ const InitializeLockForm = (props: any) => {
 
     var allInstructions: Array<TransactionInstruction> = [];
 
-    //POINTER + CALENDAR ACCOUNT HANDLING
-    //these make sure that we have all the pointer and calendar accounts we'll need
-    //for future transactions. 
-    const [
-      pointerAndCalendarInstructions,
-      currentPointerAccount,
-      unlockPointerAccount
-    ] = await buildPointerAndCalendarIx(
-      todaysDateInSeconds.toNumber(),
-      unlockDateInSeconds.toNumber(),
-      userPk,
-      connection
-    );
-    allInstructions = transferInstructions(pointerAndCalendarInstructions, allInstructions);
-
-    //VESTING ACCOUNT HANDLING
     await checks();
     const schedules = createSchedules(
       unlockDate,
       amountToLock,
       decimals
     );
+
+    //note: since we're just creating a net new unlock, we can consider the old schedule to be
+    //the zero schedule. But we'll need to handle that more gracefully when it comes time to
+    //edit schedules. 
+    let oldSchedule = getZeroSchedule();
+    let newSchedule = schedules[0];
+    //POINTER + CALENDAR ACCOUNT HANDLING
+    //these make sure that we have all the pointer and calendar accounts we'll need
+    //for future transactions. 
+    const [
+      pointerAndCalendarInstructions,
+      windowStartPointer,
+      windowStartCal,
+      windowStartDslope,
+      windowEndPointer,
+      windowEndCal,
+      windowEndDslope,
+      newUnlockPointer,
+      newUnlockDslope,
+      oldUnlockPointer,
+      oldUnlockDslope,
+    ] = await buildPointerAndCalendarIx(
+      todaysDateInSeconds.toNumber(),
+      userPk,
+      connection,
+      oldSchedule,
+      newSchedule,
+    );
+    allInstructions = transferInstructions(pointerAndCalendarInstructions, allInstructions);
+
+    //VESTING ACCOUNT HANDLING
     //get the key of the vesting acount based on the user's public key and the program's public key.
     var userBuffer = userPk.toBuffer();
     const arr = await deriveAccountInfo(
@@ -196,7 +212,17 @@ const InitializeLockForm = (props: any) => {
         vestingTokenAccountKey,
         dataAccountKey,
         dataAccountSeed,
-        yearsToLock
+        yearsToLock,
+        windowStartPointer,
+        windowStartCal,
+        windowStartDslope,
+        windowEndPointer,
+        windowEndCal,
+        windowEndDslope,
+        newUnlockPointer,
+        newUnlockDslope,
+        oldUnlockPointer,
+        oldUnlockDslope,
       );
       allInstructions = transferInstructions(createVestingInstructions, allInstructions);
 
@@ -235,7 +261,17 @@ const InitializeLockForm = (props: any) => {
         newDataAccountKey,
         newDataAccountSeed,
         amountToLock,
-        decimals
+        decimals,
+        windowStartPointer,
+        windowStartCal,
+        windowStartDslope,
+        windowEndPointer,
+        windowEndCal,
+        windowEndDslope,
+        newUnlockPointer,
+        newUnlockDslope,
+        oldUnlockPointer,
+        oldUnlockDslope,
       )
       allInstructions = transferInstructions(userDataAccountIx, allInstructions);
     };

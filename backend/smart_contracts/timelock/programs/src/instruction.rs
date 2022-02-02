@@ -144,6 +144,7 @@ pub enum VestingInstruction {
     //TODO - will the seed actually be this long?
     CreateCalendarAccount{
       calendar_account_seed: [u8; 32],
+      accountSize: u64
     },
 
     CreatePointerAccount{
@@ -157,9 +158,8 @@ pub enum VestingInstruction {
       dslope_account_seed: [u8; 32],
     },     
     
-    CreateNewCalendarAccount{
+    PopulateNewCalendarAccount{
       new_calendar_account_seed: [u8; 32],
-      bytes_to_add: u32
     },
 
     // 1. [signer] owner's account
@@ -337,8 +337,14 @@ impl VestingInstruction {
                 .get(..32)
                 .and_then(|slice| slice.try_into().ok())
                 .unwrap();
+              let account_size = rest
+                .get(32..40)
+                .and_then(|slice| slice.try_into().ok())
+                .map(u64::from_le_bytes)
+                .ok_or(InvalidInstruction)?;
               Self::CreateCalendarAccount{
                 calendar_account_seed,
+                account_size,
               }              
             }
               //create a dslope account
@@ -373,14 +379,8 @@ impl VestingInstruction {
                 .get(..32)
                 .and_then(|slice| slice.try_into().ok())
                 .unwrap();
-              let bytes_to_add = rest
-                .get(32..36)
-                .and_then(|slice| slice.try_into().ok())
-                .map(u32::from_le_bytes)
-                .ok_or(InvalidInstruction)?;
-              Self::CreateNewCalendarAccount{
+              Self::PopulateNewCalendarAccount{
                 new_calendar_account_seed,
-                bytes_to_add
               } 
             }
             //test on chain voting power   
@@ -472,9 +472,11 @@ impl VestingInstruction {
             }
             Self::CreateCalendarAccount{
               calendar_account_seed,
+              account_size,
             } => {
               buf.push(5);
               buf.extend_from_slice(calendar_account_seed);
+              buf.extend_from_slice(&account_size.to_le_bytes());
             }
             Self::CreateDslopeAccount{
               dslope_account_seed
@@ -491,13 +493,11 @@ impl VestingInstruction {
             Self::PopulatePointerAccount{} => {
               buf.push(8);
             }
-            Self::CreateNewCalendarAccount{
+            Self::PopulateNewCalendarAccount{
               new_calendar_account_seed,
-              bytes_to_add
             } => {
               buf.push(9);
               buf.extend_from_slice(new_calendar_account_seed);
-              buf.extend_from_slice(&bytes_to_add.to_le_bytes())
             }
             Self::TestOnChainVotingPower{
               vesting_account_seed,

@@ -15,9 +15,13 @@ import {
 } from '@solana/web3.js';
 import { Schedule } from './state';
 import {
+  CAL_ENTRY_SIZE,
   MAX_BOOST, 
   MAX_LOCK_TIME, 
   SCHEDULE_SIZE,
+  SECONDS_IN_WEEK,
+  WEEKS_IN_ERA,
+  ZERO_EPOCH,
 } from './const';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import next from 'next';
@@ -384,9 +388,193 @@ export function getPointerSeed(
   return ts_buf
 }
 
+export function getZeroSchedule(): Schedule {
+  return new Schedule(
+    new Numberu64(0),
+    new Numberu64(0),
+  )
+}
+
+//find out when the window start and window end is. 
+export const getWindowPointerAccountsAndData = async (
+  currentEpoch: number,
+  currentEpochTs: number,
+  currentEraStartTs: number,
+): Promise<Array<any>> => { 
+  //check to see if there is a pointer account for the given era start timestamp.
+  const seed_word = getPointerSeed(currentEraStartTs);
+  const arr = await deriveAccountInfo(
+    seed_word,
+    TOKEN_VESTING_PROGRAM_ID,
+    NEPTUNE_MINT
+  )
+  const currentPointerAccount = arr[0];
+  const currentPointerSeed = arr[2];
+  const currentPointerInfo = await getAccountInfo(
+    currentPointerAccount,
+    connection, 
+  )
+
+  //init some vars here so we can use them again outside the if statement.
+  var currentCalAccount = "";
+  var currentCalSeed = "";
+  var currentEraIsWindowStart = false;
+  if (currentPointerInfo == null) {
+    //there isn't a pointer account initialized for the current timeframe. 
+    //the current era is the window end. The previous era is the window start
+    //do nothing, since we've set the flag the way we want
+  } else {
+    //check the info of the calendar account
+    const calArr = await deriveAccountInfo(
+      getSeedWord([currentPointerAccount, "calendar"]),
+      TOKEN_VESTING_PROGRAM_ID,
+      NEPTUNE_MINT
+    );
+    currentCalAccount = calArr[0];
+    currentCalSeed = calArr[2];
+    const currentCalInfo = await getAccountInfo(
+      currentCalAccount,
+      connection, 
+    )
+    if (currentCalInfo == null) {
+      //there isn't a calendar account initialized for the current timeframe.
+      //the current era is the window end. the last era is the window start.
+      //do nothing, since the flag is set the way we want.
+    } else {
+      //there is a calendar account initialized for the current timeframe. 
+      //the current era is the window start. the next era is the window end. 
+      //set the flag to the value we need it to be
+      currentEraIsWindowStart = true;
+    }
+  }
+  console.log("is the current era the window start?", isCurrentEraTheWindowStart);
+
+  //init some vars so we have access to them outside this if statement
+  var windowStartEraTs = ""
+  var windowEndEraTs = ""
+  if (currentEraIsWindowStart) {
+    windowStartEraTs = currentEraStartTs;
+    windowEndEraTs = currentEraStartTs + (SECONDS_IN_WEEK * WEEKS_IN_ERA);
+    //handle the zero era case where we're initializing everything. The end result is that
+    //we will fill in the window from the zero epoch to the current epoch.
+    //unless of course, we're over 6 months past the zero epoch, which will break everything.
+    if (windowStartEraTs == (ZERO_EPOCH * SECONDS_IN_WEEK)) {
+      winowEndEraTs = windowStartEraTs
+    }
+  } else {
+    windowStartEraTs = currentEraStartTs - (SECONDS_IN_WEEK * WEEKS_IN_ERA);
+    windowEndEraTs = currentEraStartTs;
+  }
+  
+  //get the accounts and info that we'll need.
+  const [
+    windowStartPointer,
+    winStartPointerSeed,
+    winStartPointerInfo,
+  ] = await deriveWindowPointerAccountsAndData(windowStartEraTs);
+  const [
+    windowEndPointer,
+    winEndPointerSeed,
+    winEndPointerInfo,
+  ] = await deriveWindowPointerAccountsAndData(windowEndEraTs);
+  
+
+  return [
+    windowStartEraTs,
+    windowStartPointer,
+    winStartPointerSeed,
+    winStartPointerInfo,
+    windowEndEraTs,
+    windowEndPointer,
+    winEndPointerSeed,
+    winEndPointerInfo,
+  ]
+}
+
+async function deriveWindowPointerAccountsAndData(
+  eraStartTs: number
+): Array<any> {
+  const seedWord = getPointerSeed(eraStartTs);
+  const arr = await deriveAccountInfo(
+    seedWord,
+    TOKEN_VESTING_PROGRAM_ID,
+    NEPTUNE_MINT
+  )
+  const pointerAccount = arr[0];
+  const pointerSeed = arr[2];
+  const pointerInfo = await getAccountInfo(
+    currentPointerAccount,
+    connection, 
+  )
+  return [
+    pointerAccount,
+    pointerSeed,
+    pointerInfo
+  ]
+}
+
+export function getExistingCalAccount(
+  pointerInfo: Buffer,
+): PublicKey {
+  //cal account key starts at the 4th byte of data and is 32 bytes long. 
+  const calBytes = pointerInfo.data.slice(3,35);
+  return new PublicKey(calBytes);
+}
+
+export async function getLastFiledEpoch(
+  calAccount: PublicKey,
+  connection: Connection,
+): Promise<number> {
+  const calInfo = await getAccountInfo(
+    calAccount,
+    connection, 
+  )
+  //last filed epoch is stored in the first two bytes of the calendar header
+  const lastFiledEpochBytes = calInfo.data.slice(0,2);
+  return Numberu16.fromBuffer(lastFiledEpochBytes).toNumber()
+}
+
+export async function getNewCalAccountSize(
+  connection,
+  calAccount: PublicKey,
+  startingEpoch: number,
+  currentEpoch: number,
+  lastEpochInEra: number,
+): Promise<number> {
+  const calInfo = await getAccountInfo(
+    calAccount,
+    connection,
+  )
+  const calInfo = await getAccountInfo(
+    calAccount,
+    connection, 
+  );
+
+  //init calSize so we can use it later.
+  let calSize = 0;
+  if (calInfo == null) {
+    //we're creating a net new calendar account. cal size should be initiated at 3 to account
+    //for the header
+    calSize = 3;
+  } else {
+    calSize = calInfo.data.length();
+  }
+  let checkEpoch = startingEpoch;
+  let continueFlag = true;
+  while (continueFlag) {
+    calSize += CAL_ENTRY_SIZE;
+    if (checkEpoch == currentEpoch || checkEpoch == lastEpochInEra) {
+      continueFlag = false;
+    }
+    checkEpoch += 1;
+  }
+  return calSize
+}
+
+
 //takes an arbitrary unix timestamp and returns the first timestamp of the era the input timestamp
 //belongs to 
-export function getEra(
+export function getEraTs(
   ts:number
 ): number {
   //first, get the timestamp for the pointer account that will hold info for this point in time

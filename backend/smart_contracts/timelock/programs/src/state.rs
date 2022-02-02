@@ -6,7 +6,6 @@ use solana_program::{
 };
 
 use std::convert::TryInto;
-use std::collections::BTreeMap;
 
 pub const ACCOUNT_SPACE: usize = 10_240; //10 mill bytes, or 10MB: largest SOL account size
 pub const INIT_BYTES: usize = 1;
@@ -39,14 +38,22 @@ pub struct DataHeader {
 pub struct Point {
   pub slope: i128,
   pub bias: i128,
-  pub epoch: u16
+  pub epoch: u16 //length of two bytes
 }
 
 //not much here now, but maybe we'll need more in the future
 #[derive(Debug, Default, PartialEq)]
 pub struct PointerAccountHeader {
+  pub first_epoch: u16,
   pub calendar_account: Pubkey,
   pub dslope_account: Pubkey,
+  pub is_initialized: bool,
+}
+
+//not much here now, but maybe we'll need more in the future
+#[derive(Debug, Default, PartialEq)]
+pub struct CalendarAccountHeader {
+  pub last_filed_epoch: u16,
   pub is_initialized: bool,
 }
 
@@ -183,16 +190,20 @@ impl IsInitialized for PointerAccountHeader {
 }
 
 impl Pack for PointerAccountHeader{
-  const LEN: usize = 65; 
+  const LEN: usize = 67; 
 
   fn pack_into_slice(&self, dst: &mut [u8]) {
+    let epoch_bytes = self.first_epoch.to_le_bytes();
     let cal_bytes = self.calendar_account.to_bytes();
     let dslope_bytes = self.dslope_account.to_bytes();
-    for i in 0..32 { 
+    for i in 0..2 {
+      dst[i] = epoch_bytes[i];
+    }
+    for i in 2..34 { 
       dst[i] = cal_bytes[i];
       dst[i + 32] = dslope_bytes[i];
     }
-    dst[64] = self.is_initialized as u8;
+    dst[66] = self.is_initialized as u8;
   }
 
   fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
@@ -200,12 +211,14 @@ impl Pack for PointerAccountHeader{
         return Err(ProgramError::InvalidAccountData)
     }
     
-    let calendar_account = Pubkey::new(src[0..32].try_into().unwrap());
-    let dslope_account = Pubkey::new(src[32..64].try_into().unwrap());
-    let is_initialized = src[64] == 1;
+    let first_epoch = u16::from_le_bytes(src[0..2].try_into().unwrap());
+    let calendar_account = Pubkey::new(src[2..34].try_into().unwrap());
+    let dslope_account = Pubkey::new(src[34..66].try_into().unwrap());
+    let is_initialized = src[66] == 1;
 
     
     Ok(Self {
+      first_epoch,
       calendar_account,
       dslope_account,
       is_initialized
@@ -232,6 +245,40 @@ pub fn pack_schedules_into_slice(schedules: Vec<VestingSchedule>, target: &mut [
   for s in schedules.iter() {
       s.pack_into_slice(&mut target[offset..]);
       offset += VestingSchedule::LEN;
+  }
+}
+
+
+impl Sealed for CalendarAccountHeader {}
+
+impl Pack for CalendarAccountHeader{
+  const LEN: usize = 3;
+
+  fn pack_into_slice(&self, target: &mut [u8]) {
+    let epoch_bytes = self.last_filed_epoch.to_le_bytes();
+    for i in 0..2 {
+      target[i] = epoch_bytes[i];
+    }
+    target[3] = self.is_initialized as u8;
+  }
+
+  fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
+    if src.len() < Self::LEN {
+      msg!("point problem!");
+      return Err(ProgramError::InvalidAccountData)
+    }
+    let last_filed_epoch = u16::from_le_bytes(src[0..2].try_into().unwrap());
+    let is_initialized = src[2] == 1;
+    Ok(Self {
+      last_filed_epoch,
+      is_initialized
+    })
+  }
+}
+
+impl IsInitialized for CalendarAccountHeader{
+  fn is_initialized(&self) -> bool {
+    self.is_initialized == true
   }
 }
 
