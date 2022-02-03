@@ -144,7 +144,7 @@ pub enum VestingInstruction {
     //TODO - will the seed actually be this long?
     CreateCalendarAccount{
       calendar_account_seed: [u8; 32],
-      accountSize: u64
+      account_size: u64
     },
 
     CreatePointerAccount{
@@ -472,7 +472,7 @@ impl VestingInstruction {
             }
             Self::CreateCalendarAccount{
               calendar_account_seed,
-              account_size,
+              account_size
             } => {
               buf.push(5);
               buf.extend_from_slice(calendar_account_seed);

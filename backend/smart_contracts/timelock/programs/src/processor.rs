@@ -952,7 +952,7 @@ impl Processor {
 
       //clone or borrow most of the inputs since we'll need them later.
       msg!("iterating over window start"); 
-      let last_point = Self::fill_in_window(
+      let mut last_point = Self::fill_in_window(
         window_start_pointer,
         window_start_cal,
         window_start_dslope,
@@ -973,7 +973,7 @@ impl Processor {
       msg!("iterating over window end");
       if current_epoch != last_point.epoch {
         let first_epoch_in_window_end = Self::get_first_epoch_in_era(window_end_cal)?;
-        _last_point = Self::fill_in_window(
+        last_point = Self::fill_in_window(
           window_end_pointer,
           window_end_cal,
           window_end_dslope,
@@ -1387,7 +1387,7 @@ impl Processor {
       //transfer data from the old account to the new one.
       let old_cal_data = old_cal_account.data.borrow();
       let old_data_len = old_cal_account.data_len();
-      let new_cal_data = new_cal_data.borrow_mut();
+      let mut new_cal_data = new_cal_account.data.borrow_mut();
 
       for i in 0..old_data_len {
         new_cal_data[i] = old_cal_data[i]
@@ -1399,7 +1399,7 @@ impl Processor {
       **owner_account.lamports.borrow_mut() = owner_account.lamports()
         .checked_add(old_cal_account.lamports())
         .ok_or(VestingError::AmountOverflow)?;
-      **old_data_account.lamports.borrow_mut() = 0;
+      **old_cal_account.lamports.borrow_mut() = 0;
 
       //also wipe the data from this account, since we don't need it anymore. 
       //good practice according to paulx

@@ -22,6 +22,7 @@ import {
   SECONDS_IN_WEEK,
   WEEKS_IN_ERA,
   ZERO_EPOCH,
+  TOKEN_VESTING_PROGRAM_ID,
 } from './const';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import next from 'next';
@@ -379,13 +380,12 @@ export function transferInstructions(
 //the create account function I've already got in the rust program. 
 export function getPointerSeed(
   ts: number
-): Buffer {
-  let ts_num = new Numberu64(ts);
-  let ts_buf = new Buffer.from(ts_num);
-  while (ts_buf.length() < 32 ) {
-    ts_buf.push(Buffer.from[0])
+): Int8Array {
+  let ts_arr = Array.from(String(ts))
+  while (ts_arr.length < 32 ) {
+    ts_arr.push(0);
   }
-  return ts_buf
+  return Int8Array.from(ts_arr)
 }
 
 export function getZeroSchedule(): Schedule {
@@ -545,11 +545,6 @@ export async function getNewCalAccountSize(
     calAccount,
     connection,
   )
-  const calInfo = await getAccountInfo(
-    calAccount,
-    connection, 
-  );
-
   //init calSize so we can use it later.
   let calSize = 0;
   if (calInfo == null) {
@@ -582,20 +577,20 @@ export function getEraTs(
   //account represents until we find the timestamp where our parameter fits.
   //for our purposes, zero epoch of our protocol is 1/6/22 0000 GMT
   const zero_epoch_ts = SECONDS_IN_WEEK * ZERO_EPOCH;
-  const seconds_in_epoch = SECONDS_IN_WEEK * WEEKS_IN_EPOCH
+  const seconds_in_era = SECONDS_IN_WEEK * WEEKS_IN_ERA
   var left_ts = zero_epoch_ts;
-  var right_ts = zero_epoch_ts + seconds_in_epoch;
+  var right_ts = zero_epoch_ts + seconds_in_era;
   var check = true
   while (check) {
     if (left_ts <= ts && ts < right_ts) {
       check = false
       break
     } else {
-      left_ts += seconds_in_epoch
-      right_ts += seconds_in_epoch
+      left_ts += seconds_in_era;
+      right_ts += seconds_in_era;
     }
   }
-  return left_is
+  return left_ts
 }
 
 export function getEpochFromTs(

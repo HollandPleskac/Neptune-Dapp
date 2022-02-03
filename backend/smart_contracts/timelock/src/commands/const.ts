@@ -10,7 +10,8 @@ export const SECONDS_IN_YEAR: number = 31_557_600;
 export const MAX_LOCK_TIME: number = SECONDS_IN_YEAR * 4;
 //public key of the vesting program on devnet
 export const TOKEN_VESTING_PROGRAM_ID = new PublicKey(
-  '46vtkpbGKPQNL549bcsPphzWr3vnrrwtp3urK6TSyfsX',
+  //'46vtkpbGKPQNL549bcsPphzWr3vnrrwtp3urK6TSyfsX',
+  '9rMu9pzKMNi3UQLhx7fB4Dt1ytFt1BaE2DwuZsfZxiKB',
 );
 export const NEPTUNE_MINT = new PublicKey(
   '3SRBwtc6r84HPLBqMNQCLNFFuGCwMc7Aof7Ngiqg9JsX'
