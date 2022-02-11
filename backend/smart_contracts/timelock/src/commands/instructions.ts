@@ -6,7 +6,7 @@ import {
   SystemProgram
 } from '@solana/web3.js';
 import { Schedule } from './state';
-import { connection, getAccountInfo, Numberu32, Numberu64 } from './utils';
+import { connection, getAccountInfo, Numberu32, Numberu64, Numberu16 } from './utils';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { 
   TOKEN_VESTING_PROGRAM_ID,
@@ -473,7 +473,7 @@ export function populateNewDataAccountInstruction(
   });
 }
 
-export function onChainVotingPowerTestInstruction(
+export function userOnChainVotingPowerIx(
   userPk: PublicKey,
   vestingAccount: PublicKey,
   dataAccount: PublicKey,
@@ -486,7 +486,8 @@ export function onChainVotingPowerTestInstruction(
   let buffers = [
     Buffer.from(Int8Array.from([23]).buffer), //len 1
     Buffer.concat(vestingAccountSeed), //len 32
-    Buffer.from(Float32Array.from([clientVotingPower]).buffer) //len 4
+    //Buffer.from(Float32Array.from([clientVotingPower]).buffer) //len 4
+    new Numberu64(clientVotingPower).toBuffer() //len 8
   ];
   
   const data = Buffer.concat(buffers);
@@ -521,6 +522,29 @@ export function onChainVotingPowerTestInstruction(
   });
 }
 
+export function newCalendarIx(
+  userPk: PublicKey,
+  calAccount: PublicKey,
+  seed: Array<Buffer| Uint8Array>,
+  calAccountSize: number,
+  firstEpochInEra: number,
+): Array<TransactionInstruction> {
+  let ixs = [
+    createCalendarIx(
+      userPk,
+      calAccount,
+      seed,
+      calAccountSize,
+    ),
+    populateCalendarIx(
+      userPk,
+      calAccount,
+      firstEpochInEra,
+    )
+  ]
+  return ixs
+}
+
 export function createCalendarIx(
   userPk: PublicKey,
   cal_account: PublicKey,
@@ -532,6 +556,7 @@ export function createCalendarIx(
     Buffer.concat(seed), //len 32
     new Numberu64(accountSize).toBuffer()
   ];
+  console.log("cal account size is ", accountSize);
   const data = Buffer.concat(buffers);
   const keys = [
     {
@@ -563,12 +588,48 @@ export function createCalendarIx(
   });
 }
 
+export function populateCalendarIx(
+  userPk: PublicKey,
+  calAccount: PublicKey,
+  firstEpochInEra: number
+): TransactionInstruction {
+  let buffers = [
+    Buffer.from(Int8Array.from([6]).buffer), //len 1
+    new Numberu16(firstEpochInEra).toBuffer()
+  ];
+  const data = Buffer.concat(buffers);
+  const keys = [
+    {
+      pubkey: userPk,
+      isSigner: true,
+      isWritable: false,
+    },
+    {
+      pubkey: calAccount,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: SYSVAR_CLOCK_PUBKEY,
+      isSigner: false,
+      isWritable: true,
+    },
+  ]
+
+  return new TransactionInstruction({
+    keys,
+    programId: TOKEN_VESTING_PROGRAM_ID,
+    data,
+  });
+}
+
 export function newPointerIx(
   userPk: PublicKey,
   pointer_account: PublicKey,
   seed: Array<Buffer| Uint8Array>,
   cal_account: PublicKey,
-  dslope_account: PublicKey
+  dslope_account: PublicKey,
+  firstEpochInEra: number,
 ): Array<TransactionInstruction> {
   let ixs = [
     createPointerIx(
@@ -580,7 +641,8 @@ export function newPointerIx(
       userPk,
       pointer_account,
       cal_account,
-      dslope_account
+      dslope_account,
+      firstEpochInEra,
     )
   ]
   return ixs
@@ -590,9 +652,10 @@ export function createDslopeIx(
   userPk: PublicKey,
   dslope_account: PublicKey,
   seed: Array<Buffer | Uint8Array>,
-): TransactionInstruction {
+): Array<TransactionInstruction> {
+  console.log("dslope seed", seed);
   let buffers = [
-    Buffer.from(Int8Array.from([6]).buffer), //len 1
+    Buffer.from(Int8Array.from([7]).buffer), //len 1
     Buffer.concat(seed), //len 32 (?)
   ];
   const data = Buffer.concat(buffers);
@@ -619,11 +682,13 @@ export function createDslopeIx(
     },
   ]
 
-  return new TransactionInstruction({
+  let ix = new TransactionInstruction({
     keys,
     programId: TOKEN_VESTING_PROGRAM_ID,
     data,
   });
+
+  return [ix]
 }
 
 export function createPointerIx(
@@ -631,8 +696,9 @@ export function createPointerIx(
   pointer_account: PublicKey,
   seed: Array<Buffer | Uint8Array>,
 ): TransactionInstruction {
+  console.log("pointer seed in the bottom layer", seed);
   let buffers = [
-    Buffer.from(Int8Array.from([7]).buffer), //len 1
+    Buffer.from(Int8Array.from([8]).buffer), //len 1
     Buffer.concat(seed), //len 32
   ];
   const data = Buffer.concat(buffers);
@@ -670,10 +736,12 @@ export function populatePointerIx(
   userPk: PublicKey,
   pointer_account: PublicKey,
   cal_account: PublicKey,
-  dslope_account: PublicKey
+  dslope_account: PublicKey,
+  firstEpochInEra: number,
 ): TransactionInstruction {
   let buffers = [
-    Buffer.from(Int8Array.from([8]).buffer), //len 1
+    Buffer.from(Int8Array.from([9]).buffer), //len 1
+    new Numberu16(firstEpochInEra).toBuffer() //len 2
   ];
   const data = Buffer.concat(buffers);
   const keys = [
@@ -706,15 +774,15 @@ export function populatePointerIx(
   });
 }
 
-export function populateNewCalendarIx(
+export function transferCalendarDataIx(
   userPk: PublicKey,
   pointer_account: PublicKey,
   new_cal_account: PublicKey,
   new_cal_seed:  Array<Buffer | Uint8Array>,
   old_cal_account: PublicKey,
-): TransactionInstruction {
+): Array<TransactionInstruction> {
   let buffers = [
-    Buffer.from(Int8Array.from([9]).buffer), //len 1
+    Buffer.from(Int8Array.from([10]).buffer), //len 1
     Buffer.concat(new_cal_seed), //len 32
   ];
   const data = Buffer.concat(buffers);
@@ -741,9 +809,11 @@ export function populateNewCalendarIx(
     },
   ]
 
-  return new TransactionInstruction({
+  let ix = new TransactionInstruction({
     keys,
     programId: TOKEN_VESTING_PROGRAM_ID,
     data,
   });
+
+  return [ix]
 }

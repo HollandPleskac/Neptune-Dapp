@@ -19,7 +19,7 @@ use core::cell::{RefMut};
 
 use crate::{
     error::VestingError,
-    instruction::{VestingInstruction, SCHEDULE_SIZE},
+    instruction::{VestingInstruction},
     state::{
       pack_schedules_into_slice, 
       unpack_schedules, 
@@ -40,7 +40,10 @@ pub const MAX_LOCK_TIME: u64 = 31557600 * 4;
 
 pub const SECONDS_IN_WEEK: u64 = 604800; //seconds in an epoch
 pub const EPOCHS_IN_ERA: u16 = 26; //6 months
+//epochs is number of weeks since unix zero time. Not Solana epochs
 pub const ZERO_EPOCH: u16 = 2714; //1/6/22 0000 GMT. # of weeks since the unix zero time
+pub const I128_SIZE: usize = 16;
+pub const LAMPORT_NUMBER: u64 = 1000000000;
 
 impl Processor {
 
@@ -150,12 +153,16 @@ impl Processor {
     ) -> ProgramResult {
       let mut offset = DataHeader::LEN;
       for s in schedules.iter() {
+        /*
           let state_schedule = VestingSchedule {
               release_time: s.release_time,
               amount: s.amount,
+              creation_epoch: s.creation_epoch,
           };
           state_schedule.pack_into_slice(&mut account_data[offset..]);
-          offset += SCHEDULE_SIZE;
+          */
+          s.pack_into_slice(&mut account_data[offset..]);
+          offset += VestingSchedule::LEN;
       }
       Ok(())
     }
@@ -174,48 +181,48 @@ impl Processor {
       Ok(total)
     }
 
-    pub fn get_voting_power(
+    pub fn get_user_voting_power(
       schedules: Vec<VestingSchedule>,
       clock_sysvar_account: &AccountInfo
-    ) -> Result<f32, ProgramError> {
+    ) -> Result<u64, ProgramError> {
       //setup what we need
       let num_of_schedules = schedules.len() as i32;
       let mut voting_power_vec = Vec::new();
       let clock = Clock::from_account_info(&clock_sysvar_account)?;
-      let current_time = clock.unix_timestamp as f32;
-      let mut num_eligible_schedules = num_of_schedules;
+      let current_time = clock.unix_timestamp as u64;
+      let current_epoch = current_time / SECONDS_IN_WEEK;
+      let current_epoch_ts = current_epoch * SECONDS_IN_WEEK;
 
       //iterate through schedules 
       for s in schedules.iter() {
-        let mut amount = s.amount as f32;
-        amount = amount / 1000000000.0; //want the human readable amount, not the lamports. 
-        let release_time_seconds = s.release_time as f32;
-        let remaining_lock_time = release_time_seconds - current_time;
+        let mut amount = s.amount;
+        let release_time_ts = s.release_time;
+        let creation_epoch = s.creation_epoch as u64;
+        let creation_ts = creation_epoch * SECONDS_IN_WEEK;
+        let slope = amount / MAX_LOCK_TIME;
+        let bias = slope * (release_time_ts - creation_ts);
 
         //calculate voting power for this schedule
-        let mut voting_power: f32 = (amount / MAX_LOCK_TIME as f32) * remaining_lock_time;
+        let mut voting_power = bias - (slope * (current_epoch_ts - creation_ts));
 
-        //need this so that empty schedules (amount == 0) don't count against user's avg
-        //voting power. 
-        //Also need this in case tokens in a schedule are claimable. In that situation,
+        //need this in case tokens in a schedule are claimable. In that situation,
         //current_time > release_time_seconds, so voting power is a negative number. 
         //Claimable tokens shouldn't contribute to voting power, but they shouldn't count 
         //against the user either. just ignore them
-        if amount == 0.0 || voting_power < 0.0 {
-          num_eligible_schedules -= 1;
-          voting_power = 0.0;
+        if voting_power < 0 {
+          voting_power = 0;
         }
         voting_power_vec.push(voting_power);
       }
 
       //sum the voting powers
-      let mut sum = 0.0;
+      let mut sum = 0;
       for one_voting_power in voting_power_vec.iter() {
         sum += one_voting_power;
       }
 
-      //return the average voting power.
-      return Ok(sum / num_eligible_schedules as f32)
+      //return the average voting power. divide by lamport number to make it more readable.
+      return Ok(sum / LAMPORT_NUMBER)
     }
 
     pub fn get_epoch(
@@ -236,7 +243,8 @@ impl Processor {
     pub fn get_empty_schedule() -> Result<VestingSchedule, ProgramError> {
       let empty_schedule = VestingSchedule{
         release_time: 0,
-        amount: 0
+        amount: 0,
+        creation_epoch: 0,
       };
       return Ok(empty_schedule)
     }
@@ -259,10 +267,11 @@ impl Processor {
     pub fn get_dslope_index_from_epoch(
       epoch: u16,
       first_epoch_in_era: u16
-    ) -> Result<u16, ProgramError> {
-      Ok(epoch - first_epoch_in_era - 1)
+    ) -> Result<usize, ProgramError> {
+      Ok((epoch - first_epoch_in_era) as usize)
     }
 
+    //given a timestamp, returns the first epoch in that timestamp's era.
     pub fn get_first_epoch_in_new_era(
       current_ts: u64
     ) -> Result<u16, ProgramError> {
@@ -284,13 +293,19 @@ impl Processor {
       Ok(first_epoch as u16)
     }
 
-    pub fn get_point_from_epoch(
-      epoch: u16, 
+
+    pub fn get_last_filed_point(
       cal_account: &AccountInfo,
-      pointer_account: &AccountInfo
+      pointer_account: &AccountInfo,
     ) -> Result<Point, ProgramError> {
+      //get the last filed epoch for the window start from the first 4 bytes of calendar data. 
+      let last_filed_epoch = Self::get_last_filed_epoch(cal_account)?;
+
+      //get the first epoch in the era
       let first_epoch_in_era = Self::get_first_epoch_in_era(pointer_account)?;
-      let diff = (epoch - first_epoch_in_era) as usize;
+
+      //find out where the point object we're looking for lives
+      let diff = (last_filed_epoch - first_epoch_in_era) as usize;
       let offset = (CalendarAccountHeader::LEN);
       let first_byte_index = offset + (diff * Point::LEN );
       let second_byte_index = offset + ((diff + 1) * Point::LEN);
@@ -301,20 +316,38 @@ impl Processor {
       Ok(point)
     }
 
+    
+    pub fn get_last_filed_epoch(
+      cal_account: &AccountInfo,
+    ) -> Result<u16, ProgramError> {
+      let cal_data = cal_account.data.borrow();
+      let cal_header = CalendarAccountHeader::unpack(&cal_data[0..CalendarAccountHeader::LEN])?;
+      let last_filed_epoch = cal_header.last_filed_epoch;
+      Ok(last_filed_epoch)
+    }
+
     pub fn get_dslope(
       pointer_account: &AccountInfo,
       dslope_account: &AccountInfo,
       schedule: VestingSchedule,
     ) -> Result<i128, ProgramError> {
       //TODO => make sure the dslope account is found within the pointer account. 
-      let era_starting_epoch = Self::get_first_epoch_in_era(pointer_account)?;
-      let unlock_epoch = Self::get_epoch(schedule.release_time);
-      let dslope_data = dslope_account.data.borrow();
-      let dslope_index = Self::get_dslope_index_from_epoch(unlock_epoch, era_starting_epoch)?;
-      let first_byte_index = (dslope_index * 32) as usize;
-      let second_byte_index = ((1 + dslope_index) * 32) as usize;
-      let dslope = i128::
-      from_le_bytes(dslope_data[first_byte_index..second_byte_index].try_into().unwrap());
+      
+      //schedule release time will be zero when we pass in an empty schedule while getting
+      //the old dslope value. dslope should be zero in that case: we won't have any previous
+      //changes we'd need to revise for that user's dslope. We'd only need to touch the new
+      //unlock dslope account.
+      let mut dslope: i128 = 0;
+      if schedule.release_time != 0 {
+        let era_starting_epoch = Self::get_first_epoch_in_era(pointer_account)?;
+        let unlock_epoch = Self::get_epoch(schedule.release_time);
+        let dslope_index = Self::get_dslope_index_from_epoch(unlock_epoch, era_starting_epoch)?;
+        let first_byte_index = (dslope_index * I128_SIZE) as usize;
+        let second_byte_index = ((1 + dslope_index) * I128_SIZE) as usize;
+        let dslope_data = dslope_account.data.borrow();
+        let dslope = i128::
+        from_le_bytes(dslope_data[first_byte_index..second_byte_index].try_into().unwrap());
+      }
       Ok(dslope)
     }
 
@@ -329,9 +362,9 @@ impl Processor {
       let unlock_epoch = Self::get_epoch(schedule.release_time);
       let mut dslope_data = dslope_account.data.borrow_mut();
       let dslope_index = Self::get_dslope_index_from_epoch(unlock_epoch, era_starting_epoch)?;
-      let first_byte_index = (dslope_index * 32) as usize;
+      let first_byte_index = (dslope_index * I128_SIZE) as usize;
       let dslope_bytes = dslope_value.to_le_bytes();
-      for i in 0..32 {
+      for i in 0..I128_SIZE {
         dslope_data[i + first_byte_index] = dslope_bytes[i];
       }
       Ok(())
@@ -342,7 +375,7 @@ impl Processor {
         accounts: &[AccountInfo],
         vesting_account_seed: [u8; 32],
         data_account_seed: [u8; 32],
-        schedules: u32
+        num_of_schedules: u32
     ) -> ProgramResult {
         let accounts_iter = &mut accounts.iter();
 
@@ -362,7 +395,7 @@ impl Processor {
 
         //get required sizes for the vesting account and data account
         let state_size = VestingScheduleHeader::LEN;
-        let data_state_size = DataHeader::LEN + (schedules as usize) * VestingSchedule::LEN;
+        let data_state_size = DataHeader::LEN + (num_of_schedules as usize) * VestingSchedule::LEN;
 
         //create the vesting account
         Self::create_new_account(
@@ -410,7 +443,7 @@ impl Processor {
       let window_start_pointer = next_account_info(accounts_iter)?;
       let window_start_cal = next_account_info(accounts_iter)?;
       let window_start_dslope = next_account_info(accounts_iter)?;
-      let windew_end_pointer = next_account_info(accounts_iter)?;
+      let window_end_pointer = next_account_info(accounts_iter)?;
       let window_end_cal = next_account_info(accounts_iter)?;
       let window_end_dslope = next_account_info(accounts_iter)?;
       let new_unlock_pointer = next_account_info(accounts_iter)?;
@@ -473,11 +506,14 @@ impl Processor {
       //pack the vesting account data
       state_header.pack_into_slice(&mut vesting_account_data);
 
-      //validate the size of the data account
-      let data_account_data = data_account.data.borrow_mut();
-      if data_account_data.len() != DataHeader::LEN + (schedule.len() * VestingSchedule::LEN) {
-          msg!("invalid data account size");
-          return Err(ProgramError::InvalidAccountData)
+      //validate the size of the data account. wrap this part in a block to end the 
+      //borrow of the data account's data: we'll be borrowing it again in the deposit fn. 
+      {
+        let data_account_data = data_account.data.borrow();
+        if data_account_data.len() != DataHeader::LEN + (schedule.len() * VestingSchedule::LEN) {
+            msg!("invalid data account size");
+            return Err(ProgramError::InvalidAccountData)
+        }
       }
       
       //get nuts and bolts we'll need for the deposit
@@ -502,7 +538,7 @@ impl Processor {
         window_start_pointer,
         window_start_cal,
         window_start_dslope,
-        windew_end_pointer,
+        window_end_pointer,
         window_end_cal,
         window_end_dslope,
         new_unlock_pointer,
@@ -700,7 +736,7 @@ impl Processor {
       let window_start_pointer = next_account_info(accounts_iter)?;
       let window_start_cal = next_account_info(accounts_iter)?;
       let window_start_dslope = next_account_info(accounts_iter)?;
-      let windew_end_pointer = next_account_info(accounts_iter)?;
+      let window_end_pointer = next_account_info(accounts_iter)?;
       let window_end_cal = next_account_info(accounts_iter)?;
       let window_end_dslope = next_account_info(accounts_iter)?;
       let new_unlock_pointer = next_account_info(accounts_iter)?;
@@ -731,11 +767,14 @@ impl Processor {
       let num_of_old_schedules = old_schedules.len();
       let new_num_of_schedules = num_of_schedules_to_add + num_of_old_schedules;
 
-      //validate the new data account's size
-      let new_data_account_data = new_data_account.data.borrow_mut();
-      if new_data_account_data.len() != (new_num_of_schedules as usize) * VestingSchedule::LEN + DataHeader::LEN {
-          msg!("invalid account size for the new data account");
-          return Err(ProgramError::InvalidAccountData)
+      //validate the new data account's size. wrap it in a block so we end the 
+      //borrow here: we'll be mutably borrowing the data in the deposit fn.
+      {
+        let new_data_account_data = new_data_account.data.borrow_mut();
+        if new_data_account_data.len() != (new_num_of_schedules as usize) * VestingSchedule::LEN + DataHeader::LEN {
+            msg!("invalid account size for the new data account");
+            return Err(ProgramError::InvalidAccountData)
+        }
       }
 
 
@@ -750,6 +789,8 @@ impl Processor {
       //we'll probably run into some troubles with the clone portion of this: we need a 
       //dupliacte of schedules[0] to go in new_schedule b/c new_schedules is cleared later.
       let new_schedule = new_schedules[0].clone();
+      msg!("new schedule release time {}", new_schedule.release_time);
+      msg!("new schedule tokens {}", new_schedule.amount);
       let empty_schedule = Self::get_empty_schedule()?;
 
       //create an all schedules vector that contains all of our schedules.
@@ -799,7 +840,7 @@ impl Processor {
         window_start_pointer,
         window_start_cal,
         window_start_dslope,
-        windew_end_pointer,
+        window_end_pointer,
         window_end_cal,
         window_end_dslope,
         new_unlock_pointer,
@@ -883,6 +924,7 @@ impl Processor {
       data_header.pack_into_slice(&mut data_account_data);
 
       //pack the schedules into the data account
+      msg!("all schedules {:?}", all_schedules);
       Self::pack_schedule_vector(all_schedules.to_vec(), data_account_data)?;
 
       //validate there are enough tokens in the owner's account
@@ -924,17 +966,16 @@ impl Processor {
       //bring the protocol curve up to date (if needed)
       //first, get the current epoch
       let current_epoch = Self::get_current_epoch(clock_sysvar_account)?;
-
-      //next, get the last filed epoch for the window start from the first 4 bytes of calendar data. 
-      let mut window_start_data = window_start_cal.data.borrow_mut();
-      let window_start_cal_header = CalendarAccountHeader::unpack(&window_start_data)?;
-      let last_filed_epoch = window_start_cal_header.last_filed_epoch;
       
+      //get the last filed point from the calendar account
       //TODO - make sure the epoch filed in the point object matches the one we're looking for.
-      let last_filed_point = Self::get_point_from_epoch(
-        last_filed_epoch, 
-        window_start_cal, 
-        window_start_pointer
+      let last_filed_point = Self::get_last_filed_point( 
+        window_start_cal,
+        window_start_pointer,
+      )?;
+
+      let last_filed_epoch = Self::get_last_filed_epoch(
+        window_start_cal
       )?;
 
 
@@ -962,7 +1003,7 @@ impl Processor {
         &old_unlock_dslope,
         current_epoch.clone(),
         last_filed_point.clone(),
-        last_filed_epoch + 1, // TODO => check to see if this is what curve does
+        last_filed_epoch, // TODO => check to see if this is what curve does
         final_epoch_in_window_start,
         old_schedule.clone(),
         new_schedule.clone(),
@@ -1049,9 +1090,9 @@ impl Processor {
       let dslope_data = window_dslope.data.borrow();
       let dslope_index = Self::get_dslope_index_from_epoch(starting_epoch, first_epoch)?;
 
-      //dslopes are stored as i128s. an i128 is 32 bytes long. 
-      let mut first_byte_index_dslope = (dslope_index * 32) as usize;
-      let mut second_byte_index_dslope = ((1 + dslope_index) * 32) as usize;
+      //dslopes are stored as i128s. an i128 is 16 bytes long. 
+      let mut first_byte_index_dslope = (dslope_index * I128_SIZE) as usize;
+      let mut second_byte_index_dslope = ((1 + dslope_index) * I128_SIZE) as usize;
 
       //init the new_point object here so that we can use it later
       let mut new_point = Point{
@@ -1063,39 +1104,45 @@ impl Processor {
       //do we need to have the equal to sign here? 
       //TODO => save the last filed epoch to the cal account here. 
       let mut epoch_counter = starting_epoch;
+
+      //if the last filed point is the current epoch's point, then all we need to do is update
+      //that point with the user information. 
       while epoch_counter <= ending_epoch {
         new_point = Point::unpack(&cal_data[first_byte_index_cal..second_byte_index_cal])?;
-        dslope = i128::from_le_bytes(
-          dslope_data[first_byte_index_dslope..second_byte_index_dslope]
-          .try_into()
-          .unwrap()
-        );
-        let mut new_point_bias = last_filed_point.bias - (last_filed_point.slope * SECONDS_IN_WEEK as i128);
-        let mut new_point_slope = last_filed_point.slope - dslope; 
-        if new_point_bias < 0 {
-          new_point_bias = 0;
-        }
-        if new_point_slope < 0 {
-          new_point_slope = 0;
-        }
-        new_point.slope = new_point_slope;
-        new_point.bias = new_point_bias;
-        new_point.epoch = epoch_counter;
         if epoch_counter == current_epoch {
-          break //will this break the while loop in Rust?
+          //we don't need to catch the current epoch's point up: all we need to do are apply
+          //the user's changes, which we'll do below. 
+          break
         } else {
+          dslope = i128::from_le_bytes(
+            dslope_data[first_byte_index_dslope..second_byte_index_dslope]
+            .try_into()
+            .unwrap()
+          );
+          //new bias is the last point's bias - the last points slope * the time since the last point
+          let mut new_point_bias = last_filed_point.bias - (last_filed_point.slope * SECONDS_IN_WEEK as i128);
+          let mut new_point_slope = last_filed_point.slope - dslope; 
+          if new_point_bias < 0 {
+            new_point_bias = 0;
+          }
+          if new_point_slope < 0 {
+            new_point_slope = 0;
+          }
+          new_point.slope = new_point_slope;
+          new_point.bias = new_point_bias;
+          new_point.epoch = epoch_counter;
           new_point.pack_into_slice(&mut cal_data[first_byte_index_cal..second_byte_index_cal]);
-          //make sure this is right. I think it is b/c we don't want changs to the new point
-          //we just filed into the calendar data to happen
+          //need this clone here for the compiler's happiness. May be unessecary with a loop
+          //refactor if we need to optimize.
           last_filed_point = new_point.clone();
           epoch_counter += 1;
           first_byte_index_cal += Point::LEN;
           second_byte_index_cal += Point::LEN;
-          first_byte_index_dslope += 32;
-          second_byte_index_dslope += 32;
+          first_byte_index_dslope += I128_SIZE;
+          second_byte_index_dslope += I128_SIZE;
         }
       }
-
+      
       
 
       //if we've quit out at the current epoch, save the user information in the new point
@@ -1109,6 +1156,12 @@ impl Processor {
         let u_new_slope = new_schedule.amount / MAX_LOCK_TIME;
         let u_new_bias = u_new_slope * (new_schedule.release_time - (SECONDS_IN_WEEK * current_epoch as u64));
 
+        
+        msg!("user slope {}", u_new_slope);
+        msg!("user bias! {}", u_new_bias);
+        msg!("old user slope {}", u_old_slope);
+        msg!("old user bias! {}", u_old_bias);
+        
         //get the dslope for the old unlock time.
         let mut old_unlock_dslope_value = Self::get_dslope(
           old_unlock_pointer,
@@ -1163,20 +1216,25 @@ impl Processor {
         //save user information here. 
         new_point.slope += (u_new_slope - u_old_slope) as i128;
         new_point.bias += (u_new_bias - u_old_bias) as i128;
+        new_point.epoch = current_epoch;
         if new_point.slope < 0 {
           new_point.slope = 0;
         }
         if new_point.bias < 0 {
           new_point.bias = 0;
         }
+        msg!("new point we're saving {:?}", new_point);
         new_point.pack_into_slice(&mut cal_data[first_byte_index_cal..second_byte_index_cal]);
+        let test_point = Point::unpack(&cal_data[first_byte_index_cal..second_byte_index_cal])?;
+        msg!("test unpacking the point {:?}", test_point);
       }
 
       //save the last filed epoch to the calendar account we're working with. 
-      let epoch_counter_bytes = epoch_counter.to_le_bytes();
-      for i in 0..2 {
-        cal_data[i] = epoch_counter_bytes[i];
-      }
+      let new_cal_header = CalendarAccountHeader{
+        last_filed_epoch: epoch_counter,
+        is_initialized: true
+      };
+      new_cal_header.pack_into_slice(&mut cal_data[0..CalendarAccountHeader::LEN]);
   
       Ok(new_point)
     }
@@ -1185,7 +1243,7 @@ impl Processor {
       vesting_program: &Pubkey,
       accounts: &[AccountInfo],
       vesting_account_seed: [u8; 32],
-      client_voting_power: f32,
+      client_voting_power: u64,
     ) -> ProgramResult {
       //get accounts
       let accounts_iter = &mut accounts.iter();
@@ -1211,11 +1269,11 @@ impl Processor {
       let schedules = unpack_schedules(
         &data_account_data.borrow()[DataHeader::LEN..]
       )?;
-      let voting_power = Self::get_voting_power(schedules, clock_sysvar_account)?;
+      let voting_power = Self::get_user_voting_power(schedules, clock_sysvar_account)?;
 
       //casting as a u64 will take the integer value of the voting power and ignore the decimals
-      msg!("voting power from client is {}", client_voting_power as u64);
-      msg!("voting power from on chain function is {}", voting_power as u64);
+      msg!("voting power from client is {}", client_voting_power);
+      msg!("voting power from on chain function is {}", voting_power);
 
       Ok(())
     }
@@ -1249,6 +1307,28 @@ impl Processor {
         vesting_program,
         system_program
       )?;
+
+      Ok(())
+    }
+
+    pub fn process_populate_new_calendar_account(
+      vesting_program: &Pubkey,
+      accounts: &[AccountInfo],
+      mut first_epoch_in_era: u16
+    ) -> ProgramResult {
+      let accounts_iter = &mut accounts.iter();
+      let fee_payer_account = next_account_info(accounts_iter)?;
+      let calendar_account = next_account_info(accounts_iter)?;
+      let clock_account = next_account_info(accounts_iter)?;
+      //TODO => validate the first_epoch_in_era passed in by obtaining the first epoch
+      //in the current timestamp's era.
+      
+      let mut cal_data = calendar_account.data.borrow_mut();
+      let header = CalendarAccountHeader{
+        last_filed_epoch: first_epoch_in_era,
+        is_initialized: true
+      };
+      header.pack_into_slice(&mut cal_data[0..CalendarAccountHeader::LEN]);
 
       Ok(())
     }
@@ -1324,6 +1404,7 @@ impl Processor {
 
     pub fn process_populate_pointer_account(
       accounts: &[AccountInfo],
+      first_epoch_in_era: u16,
     ) -> ProgramResult {
 
       //get accounts
@@ -1332,15 +1413,9 @@ impl Processor {
       let pointer_account = next_account_info(accounts_iter)?;
       let calendar_account = next_account_info(accounts_iter)?;
       let dslope_account = next_account_info(accounts_iter)?;
-      let clock_sysvar_account = next_account_info(accounts_iter)?;
-
-      //get first epoch value.
-      let clock = Clock::from_account_info(&clock_sysvar_account)?;
-      let current_time = clock.unix_timestamp; //i64
-      let first_epoch = Self::get_first_epoch_in_new_era(current_time as u64)?;
 
       let pointer_header = PointerAccountHeader{
-        first_epoch: first_epoch,
+        first_epoch: first_epoch_in_era,
         calendar_account: *calendar_account.key,
         dslope_account: *dslope_account.key,
         is_initialized: true,
@@ -1355,7 +1430,7 @@ impl Processor {
     }
 
     
-    pub fn process_populate_new_calendar_account(
+    pub fn process_transfer_calendar_data(
       vesting_program: &Pubkey,
       accounts: &[AccountInfo],
       new_calendar_account_seed: [u8; 32],
@@ -1424,7 +1499,7 @@ impl Processor {
                 data_account_seed,
                 number_of_schedules,
             } => {
-                msg!("Instruction: Init");
+                msg!("Instruction: create a vesting account");
                 Self::process_create_vesting_account(
                   vesting_program, 
                   accounts, 
@@ -1434,7 +1509,7 @@ impl Processor {
                 )
             }
             VestingInstruction::Unlock { vesting_account_seed } => {
-                msg!("Instruction: Unlock");
+                msg!("Instruction: Unlock tokens");
                 Self::process_unlock(vesting_program, accounts, vesting_account_seed)
             }
             VestingInstruction::PopulateVestingAccount {
@@ -1444,7 +1519,7 @@ impl Processor {
                 years_to_lock,
                 schedules,
             } => {
-                msg!("Instruction: Create Schedule");
+                msg!("Instruction: populate a vesting account");
                 Self::process_populate_vesting_account(
                     vesting_program,
                     accounts,
@@ -1460,7 +1535,7 @@ impl Processor {
               new_data_account_seed,
               schedules,
             } => {
-              msg!("Instruction: Init new data account");
+              msg!("Instruction: create a new data account");
               Self::process_create_data_account(
                 vesting_program,
                 accounts,
@@ -1489,6 +1564,7 @@ impl Processor {
               calendar_account_seed,
               account_size,
             } => {
+              msg!("creating a new calendar account");
               Self::process_create_calendar_account(
                 vesting_program,
                 accounts,
@@ -1496,9 +1572,20 @@ impl Processor {
                 account_size
               )
             }
+            VestingInstruction::PopulateCalendarAccount {
+              first_epoch_in_era
+            } => {
+              msg!("populating the new calendar account");
+              Self::process_populate_new_calendar_account(
+                vesting_program,
+                accounts,
+                first_epoch_in_era
+              )
+            }
             VestingInstruction::CreateDslopeAccount{
               dslope_account_seed
             } => {
+              msg!("creating a new dslope account");
               Self::process_create_dslope_account(
                 vesting_program,
                 accounts,
@@ -1508,22 +1595,27 @@ impl Processor {
             VestingInstruction::CreatePointerAccount{
               pointer_account_seed
             } => {
+              msg!("creating a new pointer account");
               Self::process_create_pointer_account(
                 vesting_program,
                 accounts,
                 pointer_account_seed
               )
             }
-            VestingInstruction::PopulatePointerAccount{} =>{
+            VestingInstruction::PopulatePointerAccount{
+              first_epoch_in_era
+            } =>{
+              msg!("populating a pointer account");
               Self::process_populate_pointer_account(
-                accounts
+                accounts,
+                first_epoch_in_era
               )
             }
-            VestingInstruction::PopulateNewCalendarAccount{
+            VestingInstruction::TransferCalendarData{
               new_calendar_account_seed,
             } => {
-              msg!("creating a new calendar account");
-              Self::process_populate_new_calendar_account(
+              msg!("populating a new calendar account");
+              Self::process_transfer_calendar_data(
                 vesting_program,
                 accounts,
                 new_calendar_account_seed,

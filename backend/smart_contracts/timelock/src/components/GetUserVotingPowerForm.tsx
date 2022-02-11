@@ -13,24 +13,23 @@ import {
   Numberu64,
   getAccountInfo,
   deriveAccountInfo,
-  getVotingPower,
   getScheduleAmount,
   getScheduleReleaseDate,
   signTransactionInstructions,
 } from '../commands/utils'
 import { useWallet } from '@solana/wallet-adapter-react';
 import * as anchor from "@project-serum/anchor";
-import { onChainVotingPower } from "commands/main";
+import { userOnChainVotingPower } from "commands/main";
 import { Schedule } from '../commands/state';
 
 
-const VotingPowerTestForm = (props: any) => {
+const UserVotingPowerForm = (props: any) => {
 
   const walletContext: any = useWallet();
 
-  const testOnChainVotingPower = async (
+  const getUserVotingPower = async (
   ) => {
-    console.log("testing on chain voting power!");
+    console.log("getting on chain voting power for connected user!");
 
   //get nuts and bolts
   const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
@@ -49,7 +48,7 @@ const VotingPowerTestForm = (props: any) => {
   const seed = arr[2];
   
   //get instructions
-  const instruction = await onChainVotingPower(
+  const instruction = await userOnChainVotingPower(
     connection,
     userPk,
     vestingAccountKey,
@@ -76,15 +75,15 @@ const VotingPowerTestForm = (props: any) => {
       <Button onClick={
           async () => {
 
-              testOnChainVotingPower(
+              getUserVotingPower(
               );
 
           }
       }>
-          Click to test on chain voting power!
+          Click to return the user's on chain voting power!
       </Button>
     </>
   );
 };
 
-export default VotingPowerTestForm;
+export default UserVotingPowerForm;

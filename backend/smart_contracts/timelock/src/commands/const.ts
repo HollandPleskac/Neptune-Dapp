@@ -11,13 +11,13 @@ export const MAX_LOCK_TIME: number = SECONDS_IN_YEAR * 4;
 //public key of the vesting program on devnet
 export const TOKEN_VESTING_PROGRAM_ID = new PublicKey(
   //'46vtkpbGKPQNL549bcsPphzWr3vnrrwtp3urK6TSyfsX',
-  '9rMu9pzKMNi3UQLhx7fB4Dt1ytFt1BaE2DwuZsfZxiKB',
+  "3cSVkNNXwcfGmrYWG4eRt9xQTYfNW4kJZ22hnuDQKuGf",
 );
 export const NEPTUNE_MINT = new PublicKey(
   '3SRBwtc6r84HPLBqMNQCLNFFuGCwMc7Aof7Ngiqg9JsX'
 );
 export const MAX_BOOST = 2.5; 
-export const SCHEDULE_SIZE = 16;
+export const SCHEDULE_SIZE = 18;
 export const SECONDS_IN_WEEK = 604_800;
 export const WEEKS_IN_ERA = 26 //start with an epoch of 6 months... see where that gets us
 export const ZERO_EPOCH = 2714; //this will be the first epoch of our protocol. 1/6/22 0000 GMT

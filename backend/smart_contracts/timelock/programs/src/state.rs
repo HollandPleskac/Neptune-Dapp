@@ -17,6 +17,7 @@ pub const C_HEADER_SIZE: usize = 5;
 pub struct VestingSchedule {
     pub release_time: u64,
     pub amount: u64,
+    pub creation_epoch: u16,
 }
 
 #[derive(Debug, PartialEq)]
@@ -117,11 +118,12 @@ impl IsInitialized for VestingScheduleHeader {
 impl Sealed for VestingSchedule {}
 
 impl Pack for VestingSchedule {
-    const LEN: usize = 16;
+    const LEN: usize = 18;
 
     fn pack_into_slice(&self, dst: &mut [u8]) {
         let release_time_bytes = self.release_time.to_le_bytes();
         let amount_bytes = self.amount.to_le_bytes();
+        let creation_epoch_bytes = self.creation_epoch.to_le_bytes();
         for i in 0..8 {
             dst[i] = release_time_bytes[i];
         }
@@ -129,17 +131,23 @@ impl Pack for VestingSchedule {
         for i in 8..16 {
             dst[i] = amount_bytes[i - 8];
         }
+
+        for i in 16..18 {
+          dst[i] = creation_epoch_bytes[i - 16];
+        }
     }
 
     fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
-        if src.len() < 16 {
+        if src.len() < Self::LEN {
             return Err(ProgramError::InvalidAccountData)
         }
         let release_time = u64::from_le_bytes(src[0..8].try_into().unwrap());
         let amount = u64::from_le_bytes(src[8..16].try_into().unwrap());
+        let creation_epoch = u16::from_le_bytes(src[16..18].try_into().unwrap());
         Ok(Self {
             release_time,
             amount,
+            creation_epoch
         })
     }
 }
@@ -200,8 +208,8 @@ impl Pack for PointerAccountHeader{
       dst[i] = epoch_bytes[i];
     }
     for i in 2..34 { 
-      dst[i] = cal_bytes[i];
-      dst[i + 32] = dslope_bytes[i];
+      dst[i] = cal_bytes[i-2];
+      dst[i + 32] = dslope_bytes[i-2];
     }
     dst[66] = self.is_initialized as u8;
   }
@@ -259,12 +267,11 @@ impl Pack for CalendarAccountHeader{
     for i in 0..2 {
       target[i] = epoch_bytes[i];
     }
-    target[3] = self.is_initialized as u8;
+    target[2] = self.is_initialized as u8;
   }
 
   fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
     if src.len() < Self::LEN {
-      msg!("point problem!");
       return Err(ProgramError::InvalidAccountData)
     }
     let last_filed_epoch = u16::from_le_bytes(src[0..2].try_into().unwrap());
@@ -290,10 +297,9 @@ impl Pack for Point {
   const LEN: usize = 34;
 
   fn pack_into_slice(&self, target: &mut [u8]) {
-    msg!("packing a point object");
     let slope_bytes = self.slope.to_le_bytes();
-    let bias_bytes = self.slope.to_le_bytes();
-    let epoch_bytes = self.slope.to_le_bytes();
+    let bias_bytes = self.bias.to_le_bytes();
+    let epoch_bytes = self.epoch.to_le_bytes();
 
     //an i128 is 16 le bytes
     for i in 0..16 {

@@ -13,19 +13,18 @@ import {
   createUnlockInstruction,
   createNewDataAccountInstruction,
   populateNewDataAccountInstruction,
-  onChainVotingPowerTestInstruction,
+  userOnChainVotingPowerIx,
   newPointerIx,
-  createCalendarIx,
+  newCalendarIx,
   createDslopeIx,
-  populateNewCalendarIx
+  transferCalendarDataIx
 } from './instructions';
 import {
   findAssociatedTokenAddress,
   createAssociatedTokenAccount,
-  getAccountInfo,
   deriveAccountInfo,
   getDataAccount,
-  getVotingPower,
+  getUserVotingPower,
   transferInstructions,
   getPointerSeed,
   Numberu32,
@@ -34,7 +33,9 @@ import {
   getWindowPointerAccountsAndData,
   getExistingCalAccount,
   getLastFiledEpoch,
-  getNewCalAccountSize
+  getNewCalAccountSize,
+  getAccountInfo,
+  getEpochFromTs,
 } from './utils';
 import { ContractInfo, Schedule, Point, VestingScheduleHeader } from './state';
 import { assert } from 'console';
@@ -288,7 +289,7 @@ export async function getContractInfo(
   return info!;
 }
 
-export async function  onChainVotingPower(
+export async function  userOnChainVotingPower(
   connection: Connection,
   userPk: PublicKey,
   vestingAccount: PublicKey,
@@ -314,11 +315,11 @@ export async function  onChainVotingPower(
       const dataAccountData = dataAccountInfo.data;
       const rawSchedules = dataAccountData.slice(33);
       const numOfSchedules = rawSchedules.length / SCHEDULE_SIZE;
-      const votingPower = getVotingPower(rawSchedules, numOfSchedules);
+      const votingPower = getUserVotingPower(rawSchedules, numOfSchedules);
   
       //get instruction
       var instruction = [
-        onChainVotingPowerTestInstruction(
+        userOnChainVotingPowerIx(
           userPk,
           vestingAccount,
           dataAccountKey,
@@ -332,11 +333,12 @@ export async function  onChainVotingPower(
 }
 
 export async function buildPointerAndCalendarIx(
-  todaysDateInSeconds: number,
   userPk: PublicKey,
   connection: Connection,
   oldSchedule: Schedule,
   newSchedule: Schedule,
+  currentEpoch: number,
+  currentEpochTs: number
 ): Promise<Array<any>> {
     var ix: Array<TransactionInstruction> = [];
 
@@ -347,10 +349,9 @@ export async function buildPointerAndCalendarIx(
     //data for.
 
     const newUnlockDateInSeconds = newSchedule.releaseTime.toNumber();
-    const currentEpoch = Math.floor(todaysDateInSeconds / SECONDS_IN_WEEK);
-    const currentEpochTs = SECONDS_IN_WEEK * currentEpoch;
-    const newUnlockEpoch = Math.floor(newUnlockDateInSeconds / SECONDS_IN_WEEK);
-    const newUnlockEpochTs = SECONDS_IN_WEEK * newUnlockEpoch;
+    const [newUnlockEpoch, newUnlockEpochTs] = getEpochFromTs(newUnlockDateInSeconds)
+    console.log("current epoch", currentEpoch);
+    console.log ("currentEpochTs", currentEpochTs);
 
     //an era is the amount of time represented by one pointer account (6 months).  Pointer accounts
     //are created based on the first timestamp that belongs to the era. We calculate the current 
@@ -374,7 +375,8 @@ export async function buildPointerAndCalendarIx(
     ] = await getWindowPointerAccountsAndData(
       currentEpoch,
       currentEpochTs,
-      currentEraStartTs
+      currentEraStartTs,
+      connection,
     );
     //write a function to determine the instructions needed for each of the window accounts
       //hardest part of this one will be finding out how much space will be needed for each of the
@@ -460,6 +462,7 @@ export async function buildAllPointerIx(
   //when we work with the calendar, just expand it until we either
     //hit the last epoch in the calendar's era
     //hit the current epoch.
+  console.log("building window start ix");
   const [
     windowStartIx,
     windowStartCal,
@@ -486,7 +489,10 @@ export async function buildAllPointerIx(
 
 
   //handle the zero epoch / creation case.
+  //we'll still need SOMETHING for the window end cal and window end dslope though...
+  //should they just be the same as the window start ones?
   if (windowStartEraTs != windowEndEraTs) {
+    console.log("building window end ix");
     [
       windowEndIx,
       windowEndCal,
@@ -507,6 +513,8 @@ export async function buildAllPointerIx(
     //the only time that the window start and window end should have equal timestamps is when
     //the first time anyone stakes anything in our protocol. 
     console.log("staking protocol created");
+    windowEndCal = windowStartCal;
+    windowEndDslope = windowStartDslope;
   }
 
   return [
@@ -531,34 +539,37 @@ export async function buildOnePointerIx(
   pointerSeed: Buffer,
   pointerInfo: Buffer | null,
 ): Promise<Array<any>> {
-
   let ix: Array<TransactionInstruction> = [];
   let lastEpochInEra = (windowEraStartTs / SECONDS_IN_WEEK) + WEEKS_IN_ERA - 1;
-  let calAccount = "";
+  let firstEpochInEra = windowEraStartTs / SECONDS_IN_WEEK;
+  let calAccount = userPk //placeholder
   let calSeed = "";
 
   //derive the dslope info first, since that's going to be the same no matter what we need
   //to do for the calendar account. 
   const dslopeArr = await deriveAccountInfo(
-    getSeedWord([pointerAccount, "dslope"]),
+    getSeedWord(["dslope",pointerAccount]),
     TOKEN_VESTING_PROGRAM_ID,
     NEPTUNE_MINT
   );
   const dslopeAccount = dslopeArr[0];
   const dslopeSeed = dslopeArr[2];
-
+  console.log("pointer account", pointerAccount.toString());
+  console.log("dslope account", dslopeAccount.toString());
   if (pointerInfo == null) {
+    console.log("pointer info is null");
     //if pointer account info is empty, build ix to create a new pointer account, a new
     //calendar account and a new dslope account to go in it. 
 
     //derive keys for the first cal account of an era and the era's dslope account
     const calArr = await deriveAccountInfo(
-      getSeedWord([pointerAccount, "calendar"]),
+      getSeedWord(["calendar",pointerAccount]),
       TOKEN_VESTING_PROGRAM_ID,
       NEPTUNE_MINT
     );
-    const calAccount = calArr[0];
+    calAccount = calArr[0];
     const calSeed = calArr[2];
+    console.log("calendar account", calAccount.toString());
 
     //get the size of the new calendar account. 
     const calAccountSize = await getNewCalAccountSize(
@@ -568,11 +579,12 @@ export async function buildOnePointerIx(
       currentEpoch,
       lastEpochInEra
     );
-    const createCalIx = createCalendarIx(
+    const createCalIx = newCalendarIx(
       userPk,
       calAccount, 
       [calSeed],
       calAccountSize,
+      firstEpochInEra,
     );
     ix = transferInstructions(createCalIx, ix);
 
@@ -587,15 +599,18 @@ export async function buildOnePointerIx(
       pointerAccount,
       [pointerSeed],
       calAccount,
-      dslopeAccount
+      dslopeAccount,
+      firstEpochInEra
     );
     ix = transferInstructions(create_pointer_ix, ix);
 
   } else {
+    console.log("pointer info exists");
     //pointer account info exists. That means that we already have a dslope account.
     //so we only need to find out if we're going to init a new calendar account, or if we
     //can keep the old one. That should be easy though. Just check the last filed epoch. 
     const existingCalAccount = getExistingCalAccount(pointerInfo);
+    console.log("existing cal account", existingCalAccount.toString());
     const lastFiledEpoch = await getLastFiledEpoch(existingCalAccount, connection);
     if (lastFiledEpoch != currentEpoch) {
       //create a net new calendar account. Need to find out how large it needs to be though. 
@@ -612,17 +627,19 @@ export async function buildOnePointerIx(
         NEPTUNE_MINT
       );
       const newCalAccount = calArr[0];
+      console.log("new cal account", newCalAccount.toString());
       const newCalSeed = calArr[2];
-      const createCalIx = createCalendarIx(
+      const createCalIx = newCalendarIx(
         userPk,
         newCalAccount, 
         [newCalSeed],
         newCalAccountSize,
+        firstEpochInEra
       );
       ix = transferInstructions(createCalIx, ix);
 
       //create instructions for transferring the old cal data to the new cal data account.
-      const populateNewCalAccountIx = populateNewCalendarIx(
+      const populateNewCalAccountIx = transferCalendarDataIx(
         userPk,
         pointerAccount,
         newCalAccount,
@@ -634,7 +651,8 @@ export async function buildOnePointerIx(
       calSeed = newCalSeed;
       
     } else {
-      //nothing needs to happen because the point object we'll be changing already exists.
+      //we don't need a new calendar account: we'll be okay to use the old one.
+      calAccount = existingCalAccount
     }
   }
   return [
@@ -655,6 +673,8 @@ async function buildAllUnlockDslopeIx(
   windowEndPointer: PublicKey,
 ): Promise<Array<any>> {
   let allIx: Array<any> = [];
+
+  console.log("building new unlock dslope ix");
   const [
     newUnlockIx,
     newUnlockPointer,
@@ -668,18 +688,33 @@ async function buildAllUnlockDslopeIx(
   );
   allIx = transferInstructions(newUnlockIx, allIx);
 
-  const [
-    oldUnlockIx,
-    oldUnlockPointer,
-    oldUnlockDslope
-  ] = await buildUnlockDslopeIx(
-    userPk, 
-    connection, 
-    oldSchedule, 
-    windowStartPointer, 
-    windowEndPointer
-  );
-  allIx = transferInstructions(oldUnlockIx, allIx);
+  // if we're dealing with a net new schedule creation, then the old schedule will be identical
+  //new one. the dslope accounts for the old schedule should be the same as the dslope accounts 
+  //for the new one. 
+  let oldUnlockIx = [];
+  let oldUnlockPointer = null;
+  let oldUnlockDslope = null;
+  if (oldSchedule.releaseTime.toNumber() != newSchedule.releaseTime.toNumber()) {
+    console.log("building old unlock dslope ix");
+    [
+      oldUnlockIx,
+      oldUnlockPointer,
+      oldUnlockDslope
+    ] = await buildUnlockDslopeIx(
+      userPk, 
+      connection, 
+      oldSchedule, 
+      windowStartPointer, 
+      windowEndPointer
+    );
+    allIx = transferInstructions(oldUnlockIx, allIx);
+  } else {
+    //the release times for the old and new schedules are identical. Set the old dlsope accounts
+    //to the new dslope accounts without creating additional creation instructions.
+    oldUnlockPointer = newUnlockPointer;
+    oldUnlockDslope = newUnlockDslope;
+  }
+
   return [
     allIx,
     newUnlockPointer,
@@ -706,21 +741,24 @@ async function buildUnlockDslopeIx(
   let firstTsInUnlockEra = getEraTs(unlockTs);
   let firstEpochInUnlockEra = firstTsInUnlockEra / SECONDS_IN_WEEK;
   const seedWord = getPointerSeed(firstEpochInUnlockEra);
+  console.log(seedWord);
   const arr = await deriveAccountInfo(
     seedWord,
     TOKEN_VESTING_PROGRAM_ID,
     NEPTUNE_MINT
   )
   pointerAccount = new PublicKey(arr[0]);
+  console.log("pointer account", pointerAccount.toString());
   const pointerSeed = arr[2];
 
   //get the dslope account associated with the pointer
   const dslopeArr = await deriveAccountInfo(
-    getSeedWord([pointerAccount, "dslope"]),
+    getSeedWord(["dslope", pointerAccount]),
     TOKEN_VESTING_PROGRAM_ID,
     NEPTUNE_MINT
   );
   dslopeAccount = new PublicKey(dslopeArr[0]);
+  console.log("dslope account", dslopeAccount.toString());
   const dslopeSeed = dslopeArr[2];
   
   //make sure the pointer account we've derived isn't one of the ones we'll be creating
@@ -729,7 +767,7 @@ async function buildUnlockDslopeIx(
     //we don't need to actually do anything here. For this case, we just need the dslope
     //account key, which we already have above.
   } else {
-    //This isn't apointer account we'll be interacting with in this transaction.
+    //This isn't a pointer account we'll be interacting with in this transaction.
     //check the pointer account's data to see if its been created already. 
     const pointerInfo = await getAccountInfo(
       pointerAccount,
@@ -744,12 +782,14 @@ async function buildUnlockDslopeIx(
         [dslopeSeed]
       );
       ix = transferInstructions(dslopeIx, ix);
+      let firstEpochInEra = getEraTs(schedule.releaseTime.toNumber()) / SECONDS_IN_WEEK;
       const create_pointer_ix = await newPointerIx(
         userPk,
         pointerAccount,
         [pointerSeed],
         TOKEN_VESTING_PROGRAM_ID, //we need a pubkey here for the cal account, so we'll just put in the program ID
-        dslopeAccount
+        dslopeAccount,
+        firstEpochInEra
       );
       ix = transferInstructions(create_pointer_ix, ix);
     } else {

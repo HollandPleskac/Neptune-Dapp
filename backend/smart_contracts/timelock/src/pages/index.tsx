@@ -10,7 +10,8 @@ import TextField from '@mui/material/TextField';
 import InitializeLockForm  from '../components/InitializeLockForm';
 import InitializeUnlockForm from '../components/InitializeUnlockForm';
 import VestingInfoForm from '../components/VestingInfoForm'
-import VotingPowerTestForm from '../components/VotingPowerTestForm'
+import GetUserVotingPowerForm from '../components/GetUserVotingPowerForm'
+import GetProtocolVotingPowerForm from '../components/GetProtocolVotingPowerForm'
 import {Col, Container, Row } from "react-bootstrap";
 import { ClassNames } from "@emotion/react";
 import ListVests from '../components/ListVests'
@@ -170,8 +171,17 @@ const Home: NextPage = (props) => {
       <Container>
         <Row>
           <Col>
-          6. Use this button to test the on chain function to calculate voting power. 
-          <VotingPowerTestForm />
+          6. Use this button to test the on chain function to calculate user voting power. 
+          <GetUserVotingPowerForm />
+          </Col>
+        </Row>
+      </Container>
+
+      <Container>
+        <Row>
+          <Col>
+          6. Use this button to test the on chain function to calculate protocol voting power. 
+          <GetProtocolVotingPowerForm />
           </Col>
         </Row>
       </Container>

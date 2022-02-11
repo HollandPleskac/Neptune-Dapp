@@ -7,20 +7,29 @@ export class Schedule {
   // Release time in unix timestamp
   releaseTime!: Numberu64;
   amount!: Numberu64;
+  creationEpoch!: Numberu16;
 
-  constructor(releaseTime: Numberu64, amount: Numberu64) {
+  constructor(releaseTime: Numberu64, amount: Numberu64, creationEpoch: Numberu16) {
     this.releaseTime = releaseTime;
     this.amount = amount;
+    this.creationEpoch = creationEpoch;
   }
 
   public toBuffer(): Buffer {
-    return Buffer.concat([this.releaseTime.toBuffer(), this.amount.toBuffer()]);
+    return Buffer.concat(
+      [
+        this.releaseTime.toBuffer(), 
+        this.amount.toBuffer(), 
+        this.creationEpoch.toBuffer(),
+      ]
+    );
   }
 
   static fromBuffer(buf: Buffer): Schedule {
     const releaseTime: Numberu64 = Numberu64.fromBuffer(buf.slice(0, 8));
     const amount: Numberu64 = Numberu64.fromBuffer(buf.slice(8, 16));
-    return new Schedule(releaseTime, amount);
+    const creationEpoch: Numberu16 = Numberu16.fromBuffer(buf.slice(16, 18));
+    return new Schedule(releaseTime, amount, creationEpoch);
   }
 }
 
@@ -110,6 +119,7 @@ export class Point {
   }
 
   static unpack(buf: Buffer): Point {
+    console.log("point buffer", buf);
     const slope = Numberi128.fromBuffer(buf.slice(0, 16)).toNumber();
     const bias = Numberi128.fromBuffer(buf.slice(16, 32)).toNumber();
     const epoch = Numberu16.fromBuffer(buf.slice(32, 34)).toNumber();

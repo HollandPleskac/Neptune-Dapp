@@ -13,7 +13,7 @@ import {
   Numberu64,
   getAccountInfo,
   deriveAccountInfo,
-  getVotingPower,
+  getUserVotingPower,
   getScheduleAmount,
   getScheduleReleaseDate,
   getDataAccount,
@@ -109,7 +109,7 @@ const VestingInfoForm = (props: any) => {
         const schedulesRaw = dataAccountData.slice(33);
         const isInitialized = dataAccountData.slice(32,33);
         const numOfSchedules = schedulesRaw.length / SCHEDULE_SIZE;
-        const votingPower = getVotingPower(schedulesRaw, numOfSchedules);
+        const votingPower = getUserVotingPower(schedulesRaw, numOfSchedules);
         var offset = 0
         var i: number;
         console.log("Current voting power", votingPower);

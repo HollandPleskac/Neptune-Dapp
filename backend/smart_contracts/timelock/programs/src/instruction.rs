@@ -6,7 +6,8 @@ use crate::{
 use solana_program::{
     msg,
     program_error::ProgramError,
-    pubkey::Pubkey
+    pubkey::Pubkey,
+    program_pack::Pack
 };
 
 use std::convert::TryInto;
@@ -58,8 +59,6 @@ pub struct Schedule {
     pub amount: u64,
 }
 */
-
-pub const SCHEDULE_SIZE: usize = 16;
 
 #[repr(C)]
 #[derive(Clone, Debug, PartialEq)]
@@ -147,18 +146,24 @@ pub enum VestingInstruction {
       account_size: u64
     },
 
+    PopulateCalendarAccount{
+      first_epoch_in_era: u16
+    },
+
     CreatePointerAccount{
       pointer_account_seed: [u8; 32],
     },
 
-    PopulatePointerAccount{},
+    PopulatePointerAccount{
+      first_epoch_in_era: u16
+    },
 
     //TODO - will the seed actually be this long?
     CreateDslopeAccount{
       dslope_account_seed: [u8; 32],
     },     
     
-    PopulateNewCalendarAccount{
+    TransferCalendarData{
       new_calendar_account_seed: [u8; 32],
     },
 
@@ -166,7 +171,7 @@ pub enum VestingInstruction {
     // 2. [] vesting account
     TestOnChainVotingPower {
       vesting_account_seed: [u8; 32],
-      client_voting_power: f32,
+      client_voting_power:u64,
     },
 }
 
@@ -216,7 +221,7 @@ impl VestingInstruction {
                     .and_then(|slice| slice.try_into().ok())
                     .map(f32::from_le_bytes)
                     .ok_or(InvalidInstruction)?;
-                let number_of_schedules = rest[100..].len() / SCHEDULE_SIZE;
+                let number_of_schedules = rest[100..].len() / VestingSchedule::LEN;
                 let mut schedules: Vec<VestingSchedule> = Vec::with_capacity(number_of_schedules);
                 let mut offset = 100;
                 for _ in 0..number_of_schedules {
@@ -230,10 +235,16 @@ impl VestingInstruction {
                         .and_then(|slice| slice.try_into().ok())
                         .map(u64::from_le_bytes)
                         .ok_or(InvalidInstruction)?;
-                    offset += SCHEDULE_SIZE;
+                    let creation_epoch = rest
+                      .get(offset + 16..offset + 18)
+                      .and_then(|slice| slice.try_into().ok())
+                      .map(u16::from_le_bytes)
+                      .ok_or(InvalidInstruction)?;
+                    offset += VestingSchedule::LEN;
                     schedules.push(VestingSchedule {
                         release_time,
                         amount,
+                        creation_epoch,
                     })
                 }
                 Self::PopulateVestingAccount {
@@ -263,7 +274,7 @@ impl VestingInstruction {
                   .get(32..64)
                   .and_then(|slice| slice.try_into().ok())
                   .unwrap();
-                let number_of_schedules = rest[64..].len() / SCHEDULE_SIZE;
+                let number_of_schedules = rest[64..].len() / VestingSchedule::LEN;
                 let mut schedules: Vec<VestingSchedule> = Vec::with_capacity(number_of_schedules);
                 let mut offset = 64;
                 for _ in 0..number_of_schedules {
@@ -277,10 +288,16 @@ impl VestingInstruction {
                         .and_then(|slice| slice.try_into().ok())
                         .map(u64::from_le_bytes)
                         .ok_or(InvalidInstruction)?;
-                    offset += SCHEDULE_SIZE;
+                    let creation_epoch = rest
+                        .get(offset + 16..offset + 18)
+                        .and_then(|slice| slice.try_into().ok())
+                        .map(u16::from_le_bytes)
+                        .ok_or(InvalidInstruction)?;
+                    offset += VestingSchedule::LEN;
                     schedules.push(VestingSchedule {
                         release_time,
                         amount,
+                        creation_epoch,
                     })
                 }
                   Self::CreateNewDataAccount {
@@ -304,7 +321,7 @@ impl VestingInstruction {
                 .and_then(|slice| slice.try_into().ok())
                 .map(u64::from_le_bytes)
                 .ok_or(InvalidInstruction)?;
-              let number_of_schedules = rest[72..].len() / SCHEDULE_SIZE;
+              let number_of_schedules = rest[72..].len() / VestingSchedule::LEN;
               let mut schedules: Vec<VestingSchedule> = Vec::with_capacity(number_of_schedules);
               let mut offset = 72;
               for _ in 0..number_of_schedules {
@@ -318,10 +335,16 @@ impl VestingInstruction {
                       .and_then(|slice| slice.try_into().ok())
                       .map(u64::from_le_bytes)
                       .ok_or(InvalidInstruction)?;
-                  offset += SCHEDULE_SIZE;
+                    let creation_epoch = rest
+                      .get(offset + 16..offset + 18)
+                      .and_then(|slice| slice.try_into().ok())
+                      .map(u16::from_le_bytes)
+                      .ok_or(InvalidInstruction)?;
+                  offset += VestingSchedule::LEN;
                   schedules.push(VestingSchedule {
                       release_time,
                       amount,
+                      creation_epoch,
                   })
               }
                 Self::PopulateNewDataAccount {
@@ -347,18 +370,29 @@ impl VestingInstruction {
                 account_size,
               }              
             }
-              //create a dslope account
-              6 => {
-                let dslope_account_seed: [u8; 32] = rest
-                  .get(..32)
-                  .and_then(|slice| slice.try_into().ok())
-                  .unwrap();
-                Self::CreateDslopeAccount{
-                  dslope_account_seed,
-                }              
-              }
-            //create a pointer account
+            //create a calendar account
+            6 => {
+              let first_epoch_in_era = rest
+                .get(0..2)
+                .and_then(|slice| slice.try_into().ok())
+                .map(u16::from_le_bytes)
+                .ok_or(InvalidInstruction)?;
+              Self::PopulateCalendarAccount{
+                first_epoch_in_era
+              }              
+            }
+            //create a dslope account
             7 => {
+              let dslope_account_seed: [u8; 32] = rest
+                .get(..32)
+                .and_then(|slice| slice.try_into().ok())
+                .unwrap();
+              Self::CreateDslopeAccount{
+                dslope_account_seed,
+              }              
+            }
+            //create a pointer account
+            8 => {
               let pointer_account_seed: [u8; 32] = rest
                 .get(..32)
                 .and_then(|slice| slice.try_into().ok())
@@ -368,18 +402,23 @@ impl VestingInstruction {
               }              
             }
             //populate a pointer account
-            8 => {
+            9 => {
+              let first_epoch_in_era = rest
+                .get(0..2)
+                .and_then(|slice| slice.try_into().ok())
+                .map(u16::from_le_bytes)
+                .ok_or(InvalidInstruction)?;
               Self::PopulatePointerAccount{
-
+                first_epoch_in_era
               }
             }
             //create a new calendar account
-            9 => {
+            10 => {
               let new_calendar_account_seed: [u8; 32] = rest
                 .get(..32)
                 .and_then(|slice| slice.try_into().ok())
                 .unwrap();
-              Self::PopulateNewCalendarAccount{
+              Self::TransferCalendarData{
                 new_calendar_account_seed,
               } 
             }
@@ -390,9 +429,9 @@ impl VestingInstruction {
                 .and_then(|slice| slice.try_into().ok())
                 .unwrap();
               let client_voting_power = rest
-                .get(32..36)
+                .get(32..40)
                 .and_then(|slice| slice.try_into().ok())
-                .map(f32::from_le_bytes)
+                .map(u64::from_le_bytes)
                 .ok_or(InvalidInstruction)?;
               Self::TestOnChainVotingPower {
                 vesting_account_seed,
@@ -436,6 +475,7 @@ impl VestingInstruction {
                 for s in schedules.iter() {
                     buf.extend_from_slice(&s.release_time.to_le_bytes());
                     buf.extend_from_slice(&s.amount.to_le_bytes());
+                    buf.extend_from_slice(&s.creation_epoch.to_le_bytes());
                 }
             }
             &Self::Unlock { vesting_account_seed } => {
@@ -453,6 +493,7 @@ impl VestingInstruction {
               for s in schedules.iter() {
                   buf.extend_from_slice(&s.release_time.to_le_bytes());
                   buf.extend_from_slice(&s.amount.to_le_bytes());
+                  buf.extend_from_slice(&s.creation_epoch.to_le_bytes());
               }
             }
             Self::PopulateNewDataAccount {
@@ -468,6 +509,7 @@ impl VestingInstruction {
               for s in schedules.iter() {
                   buf.extend_from_slice(&s.release_time.to_le_bytes());
                   buf.extend_from_slice(&s.amount.to_le_bytes());
+                  buf.extend_from_slice(&s.creation_epoch.to_le_bytes());
               }
             }
             Self::CreateCalendarAccount{
@@ -477,6 +519,12 @@ impl VestingInstruction {
               buf.push(5);
               buf.extend_from_slice(calendar_account_seed);
               buf.extend_from_slice(&account_size.to_le_bytes());
+            }
+            Self::PopulateCalendarAccount{
+              first_epoch_in_era
+            } => {
+              buf.push(6);
+              buf.extend_from_slice(&first_epoch_in_era.to_le_bytes());
             }
             Self::CreateDslopeAccount{
               dslope_account_seed
@@ -490,10 +538,13 @@ impl VestingInstruction {
               buf.push(7);
               buf.extend_from_slice(pointer_account_seed);
             }
-            Self::PopulatePointerAccount{} => {
+            Self::PopulatePointerAccount{
+              first_epoch_in_era,
+            } => {
               buf.push(8);
+              buf.extend_from_slice(&first_epoch_in_era.to_le_bytes());
             }
-            Self::PopulateNewCalendarAccount{
+            Self::TransferCalendarData{
               new_calendar_account_seed,
             } => {
               buf.push(9);

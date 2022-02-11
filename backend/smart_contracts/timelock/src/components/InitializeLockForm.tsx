@@ -14,17 +14,20 @@ import {
   TOKEN_VESTING_PROGRAM_ID,
   MAX_BOOST,
   NEPTUNE_MINT,
+  SECONDS_IN_WEEK
 } from '../commands/const';
 import {
   Numberu64,
   signTransactionInstructions,
   findAssociatedTokenAddress,
   getBoost,
-  getAccountInfo,
   deriveAccountInfo,
   getMintDecimals,
   transferInstructions,
   getZeroSchedule,
+  getAccountInfo,
+  Numberu16,
+  getEpochFromTs
 } from '../commands/utils'
 import { useWallet } from '@solana/wallet-adapter-react';
 import * as anchor from "@project-serum/anchor";
@@ -58,10 +61,10 @@ const InitializeLockForm = (props: any) => {
   let todaysDateInSeconds = new Numberu64(todaysDate.getTime() / 1_000);
   let secondsToLock = new Numberu64(SECONDS_IN_YEAR * yearsToLock);
   let unlockDateInSeconds = todaysDateInSeconds.add(secondsToLock);
+  let [unlockEpoch, unlockEpochTs] = getEpochFromTs(unlockDateInSeconds.toNumber())
   console.log('locking ', amountToLock, ' tokens for ',yearsToLock,' years.')
-  let unlockDateInSecondsNum = (unlockDateInSeconds.toNumber());
-  let unlockDateInMilliseconds = unlockDateInSecondsNum * 1000;
-  let unlockDate = new Date(unlockDateInMilliseconds);
+  let normalizedUnlockDateMilliseconds = unlockEpochTs * 1000
+  let unlockDate = new Date(normalizedUnlockDateMilliseconds);
   console.log('the tokens will be claimable on ', unlockDate );
 
   //get the boost amount
@@ -134,17 +137,22 @@ const InitializeLockForm = (props: any) => {
     var allInstructions: Array<TransactionInstruction> = [];
 
     await checks();
+
+    let [currentEpoch, currentEpochTs] = getEpochFromTs(todaysDateInSeconds.toNumber())
+    //create the new schedule object now that we have all of the pieces that we need. 
     const schedules = createSchedules(
-      unlockDate,
+      unlockEpochTs,
       amountToLock,
-      decimals
+      decimals,
+      currentEpoch
     );
 
-    //note: since we're just creating a net new unlock, we can consider the old schedule to be
-    //the zero schedule. But we'll need to handle that more gracefully when it comes time to
-    //edit schedules. 
-    let oldSchedule = getZeroSchedule();
+    //TODO: since we're just creating a net new unlock, we can consider the old schedule to be
+    //the same as the new schedule like Curve does. But we'll need to handle this more gracefully
+    //when the time comes. 
     let newSchedule = schedules[0];
+    let oldSchedule = newSchedule;
+
     //POINTER + CALENDAR ACCOUNT HANDLING
     //these make sure that we have all the pointer and calendar accounts we'll need
     //for future transactions. 
@@ -161,11 +169,12 @@ const InitializeLockForm = (props: any) => {
       oldUnlockPointer,
       oldUnlockDslope,
     ] = await buildPointerAndCalendarIx(
-      todaysDateInSeconds.toNumber(),
       userPk,
       connection,
       oldSchedule,
       newSchedule,
+      currentEpoch,
+      currentEpochTs,
     );
     allInstructions = transferInstructions(pointerAndCalendarInstructions, allInstructions);
 
@@ -182,6 +191,8 @@ const InitializeLockForm = (props: any) => {
     const seedWordBump = arr[2];
     console.log("vesting account key", vestingAccountKey.toString());
     const vesting_account_check = await getAccountInfo(vestingAccountKey, connection);
+    console.log("vesting account info ", vesting_account_check);
+
     var dataAccountKey: any = "";
     if (vesting_account_check == null) {
       //if the user doesn't have a Neptune vesting account, create one
@@ -197,6 +208,30 @@ const InitializeLockForm = (props: any) => {
 
       console.log("data account key", dataAccountKey.toString());
       console.log("schedules", schedules);
+      console.log( {
+        vestingProgram: TOKEN_VESTING_PROGRAM_ID.toString(),
+        seedWordBump,
+        userPk:userPk.toString(),
+        userTokenPk: userTokenAccountPk.toString(),
+        mintPk: mintPk.toString(),
+        schedules,
+        amountToLock,
+        vestingAccount: vestingAccountKey.toString(),
+        VestingTokenAccount: vestingTokenAccountKey.toString(),
+        dataAccount:dataAccountKey.toString(),
+        dataAccountSeed,
+        yearsToLock,
+        windowStartPointer: windowStartPointer.toString(),
+        windowStartCal: windowStartCal.toString(),
+        windowStartDslope: windowStartDslope.toString(),
+        windowEndPointer: windowEndPointer.toString(),
+        windowEndCal: windowEndCal.toString(),
+        windowEndDslope: windowEndDslope.toString(),
+        newUnlockPointer: newUnlockPointer.toString(),
+        newUnlockDslope: newUnlockDslope.toString(),
+        oldUnlockPointer:oldUnlockPointer.toString(),
+        oldUnlockDslope: oldUnlockDslope.toString(),
+      })
 
       var createVestingInstructions = await createVestingAccount(
         TOKEN_VESTING_PROGRAM_ID,
@@ -248,6 +283,32 @@ const InitializeLockForm = (props: any) => {
       console.log("new data account key", newDataAccountKey.toString());
       console.log("new data account seeds", newDataAccountSeed);
       //console.log("new data account seeds alt", bs58.encode(newDataAccountSeed));
+
+      console.log( {
+        vestingProgram: TOKEN_VESTING_PROGRAM_ID.toString(),
+        seedWordBump,
+        userPk:userPk.toString(),
+        userTokenPk: userTokenAccountPk.toString(),
+        mintPk: mintPk.toString(),
+        schedules,
+        amountToLock,
+        vestingAccount: vestingAccountKey.toString(),
+        VestingTokenAccount: vestingTokenAccountKey.toString(),
+        oldDataAccount: oldDataAccountKey.toString(),
+        newDataAccount: newDataAccountKey.toString(),
+        yearsToLock,
+        windowStartPointer: windowStartPointer.toString(),
+        windowStartCal: windowStartCal.toString(),
+        windowStartDslope: windowStartDslope.toString(),
+        windowEndPointer: windowEndPointer.toString(),
+        windowEndCal: windowEndCal.toString(),
+        windowEndDslope: windowEndDslope.toString(),
+        newUnlockPointer: newUnlockPointer.toString(),
+        newUnlockDslope: newUnlockDslope.toString(),
+        oldUnlockPointer:oldUnlockPointer.toString(),
+        oldUnlockDslope: oldUnlockDslope.toString(),
+      })
+
       var userDataAccountIx = await add(
         TOKEN_VESTING_PROGRAM_ID,
         seedWordBump,
@@ -295,18 +356,21 @@ const InitializeLockForm = (props: any) => {
   lock();
 
   function createSchedules(
-    unlockDate: any,
+    unlockEpochTs: any,
     amountToLock: any,
-    decimals: any
+    decimals: any,
+    currentEpoch: number,
   ) {
     const schedules: Schedule[] = [];
     //we unlock all the tokens at the end date, so we only have one unlock date
     schedules.push(
       new Schedule(
-        /** Has to be in seconds */
-        new Numberu64(unlockDate.getTime() / 1_000),
+        /** Timestamp of unlock in seconds*/
+        new Numberu64(unlockEpochTs),
         /** Don't forget to add decimals */
         new Numberu64(amountToLock * Math.pow(10, decimals)),
+        //store the epoch we created the schedule in
+        new Numberu16(currentEpoch)
       ),
     );
     return schedules
