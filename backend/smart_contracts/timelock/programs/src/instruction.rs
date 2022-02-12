@@ -169,10 +169,14 @@ pub enum VestingInstruction {
 
     // 1. [signer] owner's account
     // 2. [] vesting account
-    TestOnChainVotingPower {
+    TestUserOnChainVotingPower {
       vesting_account_seed: [u8; 32],
       client_voting_power:u64,
     },
+
+    TestProtocolOnChainVotingPower {
+      client_voting_power: u64,
+    }
 }
 
 impl VestingInstruction {
@@ -422,7 +426,7 @@ impl VestingInstruction {
                 new_calendar_account_seed,
               } 
             }
-            //test on chain voting power   
+            //test on chain user voting power   
             23 => {
               let vesting_account_seed: [u8; 32] = rest
                 .get(..32)
@@ -433,8 +437,19 @@ impl VestingInstruction {
                 .and_then(|slice| slice.try_into().ok())
                 .map(u64::from_le_bytes)
                 .ok_or(InvalidInstruction)?;
-              Self::TestOnChainVotingPower {
+              Self::TestUserOnChainVotingPower {
                 vesting_account_seed,
+                client_voting_power,
+              }
+            }
+            //test on chain protocol voting power   
+            24 => {
+              let client_voting_power = rest
+                .get(..8)
+                .and_then(|slice| slice.try_into().ok())
+                .map(u64::from_le_bytes)
+                .ok_or(InvalidInstruction)?;
+              Self::TestProtocolOnChainVotingPower {
                 client_voting_power,
               }
             }
@@ -550,12 +565,18 @@ impl VestingInstruction {
               buf.push(9);
               buf.extend_from_slice(new_calendar_account_seed);
             }
-            Self::TestOnChainVotingPower{
+            Self::TestUserOnChainVotingPower{
               vesting_account_seed,
               client_voting_power,
             } => {
               buf.push(23);
               buf.extend_from_slice(vesting_account_seed);
+              buf.extend_from_slice(&client_voting_power.to_le_bytes());
+            }
+            Self::TestProtocolOnChainVotingPower{
+              client_voting_power,
+            } => {
+              buf.push(24);
               buf.extend_from_slice(&client_voting_power.to_le_bytes());
             }
         };

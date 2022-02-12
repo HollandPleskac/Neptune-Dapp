@@ -35,7 +35,8 @@ import { Schedule } from '../commands/state';
 import { 
     createVestingAccount,
     add,
-    buildPointerAndCalendarIx 
+    buildAllWindowIx,
+    buildAllUnlockDslopeIx,
 } from '../commands/main';
 import axios from "axios";
 import bs58 from 'bs58';
@@ -157,26 +158,40 @@ const InitializeLockForm = (props: any) => {
     //these make sure that we have all the pointer and calendar accounts we'll need
     //for future transactions. 
     const [
-      pointerAndCalendarInstructions,
+      windowInstructions,
       windowStartPointer,
       windowStartCal,
       windowStartDslope,
       windowEndPointer,
       windowEndCal,
       windowEndDslope,
-      newUnlockPointer,
-      newUnlockDslope,
-      oldUnlockPointer,
-      oldUnlockDslope,
-    ] = await buildPointerAndCalendarIx(
+    ] = await buildAllWindowIx(
       userPk,
       connection,
-      oldSchedule,
-      newSchedule,
       currentEpoch,
       currentEpochTs,
     );
-    allInstructions = transferInstructions(pointerAndCalendarInstructions, allInstructions);
+    allInstructions = transferInstructions(windowInstructions, allInstructions);
+
+    //write a function to get the pointer and dslope accounts for the new and old schedules.
+    //note that this will need to handle the case where a user is locking and unlocking tokens within the same era.
+    //we'll also need to handle the case where the user is creating a net new unlock position,
+    //which will require a dslope account creation instruction
+    const [
+      unlockDslopeIx,
+      newUnlockPointer,
+      newUnlockDslope,
+      oldUnlockPointer,
+      oldUnlockDslope
+    ] = await buildAllUnlockDslopeIx(
+      userPk,
+      connection,
+      newSchedule,
+      oldSchedule,
+      windowStartPointer,
+      windowEndPointer,
+    );
+    allInstructions = transferInstructions(unlockDslopeIx, allInstructions);
 
     //VESTING ACCOUNT HANDLING
     //get the key of the vesting acount based on the user's public key and the program's public key.

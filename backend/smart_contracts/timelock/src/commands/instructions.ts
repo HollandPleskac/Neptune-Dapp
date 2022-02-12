@@ -522,6 +522,70 @@ export function userOnChainVotingPowerIx(
   });
 }
 
+export function protocolOnChainVotingPowerIx(
+  windowStartPointer: PublicKey,
+  windowStartCal: PublicKey,
+  windowStartDslope: PublicKey,
+  windowEndPointer: PublicKey,
+  windowEndCal: PublicKey,
+  windowEndDslope: PublicKey,
+  clientVotingPower: number
+): TransactionInstruction {
+
+  let buffers = [
+    Buffer.from(Int8Array.from([24]).buffer), //len 1
+    //Buffer.from(Float32Array.from([clientVotingPower]).buffer) //len 4
+    new Numberu64(clientVotingPower).toBuffer() //len 8
+  ];
+  
+  const data = Buffer.concat(buffers);
+
+  //calendars should be writable for this transaction: we may file new points to them. 
+  const keys = [
+    {
+      pubkey: windowStartPointer,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: windowStartCal,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: windowStartDslope,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: windowEndPointer,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: windowEndCal,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: windowEndDslope,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: SYSVAR_CLOCK_PUBKEY,
+      isSigner: false,
+      isWritable: false,
+    },
+  ];
+
+  return new TransactionInstruction({
+    keys,
+    programId: TOKEN_VESTING_PROGRAM_ID,
+    data,
+  });
+}
+
 export function newCalendarIx(
   userPk: PublicKey,
   calAccount: PublicKey,

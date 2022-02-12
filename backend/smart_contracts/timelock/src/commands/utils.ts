@@ -13,7 +13,7 @@ import {
   SYSVAR_RENT_PUBKEY,
   SendOptions,
 } from '@solana/web3.js';
-import { Schedule, Point } from './state';
+import { Schedule, Point, VestingScheduleHeader } from './state';
 import {getAccountInfo} from './async'
 import {
   CAL_ENTRY_SIZE,
@@ -283,8 +283,9 @@ export function getUserVotingPower(
   //const avgVotingPower = sum / numOfEligibleSchedules;
 
   //divide the sum by the lamport number to make it more human readable. 
-  console.log("total user voting power", Math.floor(sum / 1000000000))
-  return Math.floor(sum / 1000000000)
+  //console.log("total user voting power", Math.floor(sum / 1000000000))
+  console.log("total user voting power", sum);
+  return sum
 }
 
 export function getScheduleAmount(
@@ -609,8 +610,11 @@ export function calculateProtocolVotingPower(
   //just for now! This is a lot more complex in reality.
   let pointTs = point.epoch * SECONDS_IN_WEEK;
   let votingPower = point.bias - point.slope * (currentTs - pointTs);
-  return Math.floor(votingPower / 1000000000) //not in lamports to make it more human readable.
+  //return Math.floor(votingPower / 1000000000) //not in lamports to make it more human readable.
+  return votingPower
 }
+
+
 
 //given a timestamp in seconds, return the epoch that timestamp belongs in and the timestamp 
 //of that epoch in seconds
@@ -697,6 +701,10 @@ export function getSeedWord(
   let allBuffs = Buffer.concat(seedBuffArray);
 
   return allBuffs
+}
+
+export function getEmptySchedule(): Schedule {
+ return new Schedule(0,0,0)
 }
 
 export const createAssociatedTokenAccount = async (

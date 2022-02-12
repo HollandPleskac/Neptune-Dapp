@@ -225,6 +225,30 @@ impl Processor {
       return Ok(sum / LAMPORT_NUMBER)
     }
 
+    pub fn get_current_protocol_voting_power(
+      pointer_account: &AccountInfo,
+      cal_account: &AccountInfo,
+      clock_sysvar_account: &AccountInfo,
+    ) -> Result<i128, ProgramError> {
+      let last_filed_point = Self::get_last_filed_point(
+        pointer_account,
+        cal_account,
+      )?;
+      let clock = Clock::from_account_info(&clock_sysvar_account)?;
+      let current_time = clock.unix_timestamp as u64;
+      let current_epoch = current_time / SECONDS_IN_WEEK;
+      let current_epoch_ts = (current_epoch as u64 * SECONDS_IN_WEEK) as i128;
+      let point_ts = (last_filed_point.epoch as u64 * SECONDS_IN_WEEK) as i128;
+
+      let mut voting_power = last_filed_point.bias - last_filed_point.slope * (current_epoch_ts - point_ts);
+      voting_power = voting_power / LAMPORT_NUMBER as i128;
+      if voting_power < 0 {
+        voting_power = 0;
+      }
+
+      Ok(voting_power)
+    }
+
     pub fn get_epoch(
       ts: u64
     ) -> u16 {
@@ -295,9 +319,24 @@ impl Processor {
 
 
     pub fn get_last_filed_point(
-      cal_account: &AccountInfo,
       pointer_account: &AccountInfo,
+      cal_account: &AccountInfo,
     ) -> Result<Point, ProgramError> {
+      let first_byte_index = Self::get_last_filed_point_index(
+        pointer_account,
+        cal_account,
+      )?;
+      let second_byte_index = first_byte_index + Point::LEN;
+      let cal_data = cal_account.data.borrow();
+      let point = Point::unpack(&cal_data[first_byte_index..second_byte_index])?;
+      //TODO - make sure the epoch filed in the point object matches the one we're looking for
+      Ok(point)
+    }
+
+    pub fn get_last_filed_point_index(
+      pointer_account: &AccountInfo,
+      cal_account: &AccountInfo,
+    ) -> Result<usize, ProgramError> {
       //get the last filed epoch for the window start from the first 4 bytes of calendar data. 
       let last_filed_epoch = Self::get_last_filed_epoch(cal_account)?;
 
@@ -307,13 +346,8 @@ impl Processor {
       //find out where the point object we're looking for lives
       let diff = (last_filed_epoch - first_epoch_in_era) as usize;
       let offset = (CalendarAccountHeader::LEN);
-      let first_byte_index = offset + (diff * Point::LEN );
-      let second_byte_index = offset + ((diff + 1) * Point::LEN);
-      let cal_data = cal_account.data.borrow();
-      let point = Point::unpack(&cal_data[first_byte_index..second_byte_index])?;
-      //TODO - make sure the epoch filed in the point object matches the one we're looking for.
-
-      Ok(point)
+      let first_index = offset + (diff * Point::LEN );
+      Ok(first_index)
     }
 
     
@@ -886,28 +920,45 @@ impl Processor {
       window_end_cal: &AccountInfo<'a>,
       window_end_dslope: &AccountInfo<'a>,
       new_unlock_pointer: &AccountInfo<'a>,
-      new_unlock_dlsope: &AccountInfo<'a>,
+      new_unlock_dslope: &AccountInfo<'a>,
       old_unlock_pointer: &AccountInfo<'a>,
       old_unlock_dslope: &AccountInfo<'a>,
       clock_sysvar_account: &AccountInfo<'a>,
     ) -> ProgramResult {
 
       //update the protocol's voting power before we change the user's info.
+      //first, get the current epoch
+      let current_epoch = Self::get_current_epoch(clock_sysvar_account)?;
       msg!("updating protocol curve");
-      Self::update_protocol_curve(
-        old_schedule, 
-        new_schedule, 
+      let finished_at_window_start = Self::update_protocol_curve(
         window_start_pointer,
         window_start_cal,
         window_start_dslope,
         window_end_pointer,
         window_end_cal,
         window_end_dslope,
+        current_epoch,
+      )?;
+
+      msg!("saving user data to protocol curve");
+      //now that the protocol is up to date, add the user's information to it.
+      //find out which calendar account we'll be saving info to.
+      let mut pointer_account_to_save_to = window_end_pointer;
+      let mut cal_account_to_save_to = window_end_cal;
+      if finished_at_window_start {
+        pointer_account_to_save_to = window_start_pointer;
+        cal_account_to_save_to = window_start_cal;
+      }
+      Self::save_user_info_to_protocol(
+        pointer_account_to_save_to,
+        cal_account_to_save_to,
         new_unlock_pointer,
-        new_unlock_dlsope,
+        new_unlock_dslope,
         old_unlock_pointer,
         old_unlock_dslope,
-        clock_sysvar_account
+        old_schedule,
+        new_schedule,
+        current_epoch,
       )?;
 
       msg!("protocol update successful! Depositing tokens");
@@ -948,30 +999,22 @@ impl Processor {
     }
 
     pub fn update_protocol_curve(
-      old_schedule: VestingSchedule,
-      new_schedule: VestingSchedule,
       window_start_pointer: &AccountInfo,
       window_start_cal: &AccountInfo,
       window_start_dslope: &AccountInfo,
       window_end_pointer: &AccountInfo,
       window_end_cal: &AccountInfo,
       window_end_dslope: &AccountInfo,
-      new_unlock_pointer: &AccountInfo,
-      new_unlock_dslope: &AccountInfo,
-      old_unlock_pointer: &AccountInfo,
-      old_unlock_dslope: &AccountInfo,
-      clock_sysvar_account: &AccountInfo,
-    ) -> ProgramResult {
+      current_epoch: u16,
+    ) -> Result<bool, ProgramError> {
 
       //bring the protocol curve up to date (if needed)
-      //first, get the current epoch
-      let current_epoch = Self::get_current_epoch(clock_sysvar_account)?;
       
       //get the last filed point from the calendar account
       //TODO - make sure the epoch filed in the point object matches the one we're looking for.
       let last_filed_point = Self::get_last_filed_point( 
-        window_start_cal,
         window_start_pointer,
+        window_start_cal,
       )?;
 
       let last_filed_epoch = Self::get_last_filed_epoch(
@@ -992,48 +1035,34 @@ impl Processor {
       //quit with the last point object that we touched. 
 
       //clone or borrow most of the inputs since we'll need them later.
-      msg!("iterating over window start"); 
+      msg!("iterating over window start");
+      let mut finished_at_window_start = true; 
       let mut last_point = Self::fill_in_window(
         window_start_pointer,
         window_start_cal,
         window_start_dslope,
-        &new_unlock_pointer,
-        &new_unlock_dslope,
-        &old_unlock_pointer,
-        &old_unlock_dslope,
         current_epoch.clone(),
         last_filed_point.clone(),
-        last_filed_epoch, // TODO => check to see if this is what curve does
-        final_epoch_in_window_start,
-        old_schedule.clone(),
-        new_schedule.clone(),
+        last_filed_epoch,            //epoch to start iteration 
+        final_epoch_in_window_start, //epoch to end iteration
       )?;
 
       //if the last piece of the window start that we touched wasn't the current date, iterate through the window end until we hit the current date. Same process as before.
       //start at the newest point object
-      msg!("iterating over window end");
       if current_epoch != last_point.epoch {
+        finished_at_window_start = false;
+        msg!("iterating over window end");
         let first_epoch_in_window_end = Self::get_first_epoch_in_era(window_end_cal)?;
         last_point = Self::fill_in_window(
           window_end_pointer,
           window_end_cal,
           window_end_dslope,
-          new_unlock_pointer,
-          new_unlock_dslope,
-          old_unlock_pointer,
-          old_unlock_dslope,
           current_epoch,
           last_point.clone(),
-          first_epoch_in_window_end,
-          current_epoch,
-          old_schedule,
-          new_schedule,
+          first_epoch_in_window_end, //epoch to start iteration
+          current_epoch,             //epoch toend iteration
         )?;
       }
-
-
-
-      
 
       //sounds like we could have a loop for the filling in that gets called twice: once on the window start and once on the window end. What would it need passed in?
         //calendar account
@@ -1051,7 +1080,7 @@ impl Processor {
 
       //update the data for the current point oject in the window end
       //also update the dslope situation for the unlock pointer. 
-      Ok(())
+      Ok((finished_at_window_start))
     }
 
 
@@ -1068,16 +1097,10 @@ impl Processor {
       window_pointer: &AccountInfo,
       window_cal: &AccountInfo,
       window_dslope: &AccountInfo,
-      new_unlock_pointer: &AccountInfo,
-      new_unlock_dslope: &AccountInfo,
-      old_unlock_pointer: &AccountInfo,
-      old_unlock_dslope: &AccountInfo,
       current_epoch: u16,
       mut last_filed_point: Point,
       starting_epoch: u16,
       ending_epoch: u16,
-      old_schedule: VestingSchedule, 
-      new_schedule: VestingSchedule,
     ) -> Result<Point, ProgramError> {
       //init the last point outside the loop so we have access to it outside the loop
       let first_epoch = Self::get_first_epoch_in_era(window_pointer)?;
@@ -1142,92 +1165,6 @@ impl Processor {
           second_byte_index_dslope += I128_SIZE;
         }
       }
-      
-      
-
-      //if we've quit out at the current epoch, save the user information in the new point
-      if epoch_counter == current_epoch {
-        //schedule the dslope changes here... TODO => we need the unlock period dslope account
-        //for both the new unlock period and the old unlock period...
-
-        //get user info we'll need for dslope calculations
-        let u_old_slope = old_schedule.amount / MAX_LOCK_TIME;
-        let u_old_bias = u_old_slope * (old_schedule.release_time - (SECONDS_IN_WEEK * current_epoch as u64));
-        let u_new_slope = new_schedule.amount / MAX_LOCK_TIME;
-        let u_new_bias = u_new_slope * (new_schedule.release_time - (SECONDS_IN_WEEK * current_epoch as u64));
-
-        
-        msg!("user slope {}", u_new_slope);
-        msg!("user bias! {}", u_new_bias);
-        msg!("old user slope {}", u_old_slope);
-        msg!("old user bias! {}", u_old_bias);
-        
-        //get the dslope for the old unlock time.
-        let mut old_unlock_dslope_value = Self::get_dslope(
-          old_unlock_pointer,
-          old_unlock_dslope,
-          old_schedule.clone()
-        )?;
-
-        //figure out what new_unlock_dslope should be
-        //init the new_unlock_dslope so we can access it outside the loop
-        let mut new_unlock_dslope_value: i128 = 0;
-        if new_schedule.release_time != 0 {
-          if new_schedule.release_time == old_schedule.release_time {
-            new_unlock_dslope_value = old_unlock_dslope_value;
-          } else {
-            new_unlock_dslope_value = Self::get_dslope(
-              new_unlock_pointer,
-              new_unlock_dslope,
-              new_schedule.clone()
-            )?;
-          }
-        }
-
-        //save the dslope information to the appropriate accounts. 
-        if old_schedule.release_time > (current_epoch as u64 * SECONDS_IN_WEEK) {
-          old_unlock_dslope_value += u_old_slope as i128;
-          // in this case, u_new_slope = u_old_slope, so there's no change to the old_unlock_slope:
-          //we're not changing the time that the tokens in this schedule unlock
-          if new_schedule.release_time == old_schedule.release_time {
-            old_unlock_dslope_value -= u_new_slope as i128;
-          }
-          Self::save_dslope(
-            old_unlock_pointer, 
-            old_unlock_dslope, 
-            old_unlock_dslope_value,
-            old_schedule.clone(),
-          )?;
-        }
-
-        if new_schedule.release_time > (current_epoch as u64 * SECONDS_IN_WEEK) {
-          if new_schedule.release_time > old_schedule.release_time {
-            new_unlock_dslope_value -= u_new_slope as i128;
-            Self::save_dslope(
-              new_unlock_pointer, 
-              new_unlock_dslope, 
-              new_unlock_dslope_value,
-              new_schedule,
-            )?;
-          }
-        }
-
-
-        //save user information here. 
-        new_point.slope += (u_new_slope - u_old_slope) as i128;
-        new_point.bias += (u_new_bias - u_old_bias) as i128;
-        new_point.epoch = current_epoch;
-        if new_point.slope < 0 {
-          new_point.slope = 0;
-        }
-        if new_point.bias < 0 {
-          new_point.bias = 0;
-        }
-        msg!("new point we're saving {:?}", new_point);
-        new_point.pack_into_slice(&mut cal_data[first_byte_index_cal..second_byte_index_cal]);
-        let test_point = Point::unpack(&cal_data[first_byte_index_cal..second_byte_index_cal])?;
-        msg!("test unpacking the point {:?}", test_point);
-      }
 
       //save the last filed epoch to the calendar account we're working with. 
       let new_cal_header = CalendarAccountHeader{
@@ -1239,7 +1176,163 @@ impl Processor {
       Ok(new_point)
     }
 
-    pub fn process_voting_power_test(
+    pub fn save_user_info_to_protocol(
+      pointer_account: &AccountInfo,
+      cal_account: &AccountInfo,
+      new_unlock_pointer: &AccountInfo,
+      new_unlock_dslope: &AccountInfo,
+      old_unlock_pointer: &AccountInfo,
+      old_unlock_dslope: &AccountInfo,
+      old_schedule: VestingSchedule,
+      new_schedule: VestingSchedule,
+      current_epoch: u16, 
+    ) -> ProgramResult {
+      //save the user information in the new point
+      //schedule the dslope changes here... TODO => we need the unlock period dslope account
+      //for both the new unlock period and the old unlock period...
+
+      //get user info we'll need for dslope calculations
+      let u_old_slope = old_schedule.amount / MAX_LOCK_TIME;
+      let u_old_bias = u_old_slope * (old_schedule.release_time - (SECONDS_IN_WEEK * current_epoch as u64));
+      let u_new_slope = new_schedule.amount / MAX_LOCK_TIME;
+      let u_new_bias = u_new_slope * (new_schedule.release_time - (SECONDS_IN_WEEK * current_epoch as u64));
+
+      
+      msg!("user slope {}", u_new_slope);
+      msg!("user bias! {}", u_new_bias);
+      msg!("old user slope {}", u_old_slope);
+      msg!("old user bias! {}", u_old_bias);
+      
+      //get the dslope for the old unlock time.
+      let mut old_unlock_dslope_value = Self::get_dslope(
+        old_unlock_pointer,
+        old_unlock_dslope,
+        old_schedule.clone()
+      )?;
+
+      msg!("old unlock dslope {}", old_unlock_dslope_value);
+
+      //figure out what new_unlock_dslope should be
+      //init the new_unlock_dslope so we can access it outside the loop
+      let mut new_unlock_dslope_value: i128 = 0;
+      if new_schedule.release_time != 0 {
+        if new_schedule.release_time == old_schedule.release_time {
+          new_unlock_dslope_value = old_unlock_dslope_value;
+        } else {
+          new_unlock_dslope_value = Self::get_dslope(
+            new_unlock_pointer,
+            new_unlock_dslope,
+            new_schedule.clone()
+          )?;
+        }
+      }
+
+      msg!("new unlock dslope {}", new_unlock_dslope_value);
+
+      //save the dslope information to the appropriate accounts. 
+      if old_schedule.release_time > (current_epoch as u64 * SECONDS_IN_WEEK) {
+        old_unlock_dslope_value += u_old_slope as i128;
+        // in this case, u_new_slope = u_old_slope, so there's no change to the old_unlock_slope:
+        //we're not changing the time that the tokens in this schedule unlock
+        if new_schedule.release_time == old_schedule.release_time {
+          old_unlock_dslope_value -= u_new_slope as i128;
+        }
+        Self::save_dslope(
+          old_unlock_pointer, 
+          old_unlock_dslope, 
+          old_unlock_dslope_value,
+          old_schedule.clone(),
+        )?;
+      }
+
+      if new_schedule.release_time > (current_epoch as u64 * SECONDS_IN_WEEK) {
+        if new_schedule.release_time > old_schedule.release_time {
+          new_unlock_dslope_value -= u_new_slope as i128;
+          Self::save_dslope(
+            new_unlock_pointer, 
+            new_unlock_dslope, 
+            new_unlock_dslope_value,
+            new_schedule,
+          )?;
+        }
+      }
+
+
+      //actually save user information here. 
+      let mut new_point = Self::get_last_filed_point(
+        pointer_account,
+        cal_account,
+      )?;
+      msg!("new point {:?}", new_point);
+      new_point.slope += (u_new_slope - u_old_slope) as i128;
+      new_point.bias += (u_new_bias - u_old_bias) as i128;
+      new_point.epoch = current_epoch;
+      if new_point.slope < 0 {
+        new_point.slope = 0;
+      }
+      if new_point.bias < 0 {
+        new_point.bias = 0;
+      }
+      let first_byte_index = Self::get_last_filed_point_index(
+        pointer_account,
+        cal_account,
+      )?;
+      let second_byte_index = first_byte_index + Point::LEN;
+      let mut cal_data = cal_account.data.borrow_mut();
+      msg!("new point we're saving {:?}", new_point);
+      new_point.pack_into_slice(&mut cal_data[first_byte_index..second_byte_index]);
+      Ok(())
+    }
+
+    pub fn process_protocol_voting_power_test(
+      vesting_program: &Pubkey,
+      accounts: &[AccountInfo],
+      client_voting_power: u64
+    ) -> ProgramResult {
+
+      let accounts_iter = &mut accounts.iter();
+      let window_start_pointer = next_account_info(accounts_iter)?;
+      let window_start_cal = next_account_info(accounts_iter)?;
+      let window_start_dslope = next_account_info(accounts_iter)?;
+      let window_end_pointer = next_account_info(accounts_iter)?;
+      let window_end_cal = next_account_info(accounts_iter)?;
+      let window_end_dslope = next_account_info(accounts_iter)?;
+      let clock_sysvar_account = next_account_info(accounts_iter)?;
+
+      //first, see if we need to bring the protocol up to date. the update protocol curve
+      //function will do this if needed, or do nothing if the protocol is up to date. 
+      let current_epoch = Self::get_current_epoch(clock_sysvar_account)?;
+      msg!("updating protocol curve");
+      let finished_at_window_start = Self::update_protocol_curve(
+        window_start_pointer,
+        window_start_cal,
+        window_start_dslope,
+        window_end_pointer,
+        window_end_cal,
+        window_end_dslope,
+        current_epoch,
+      )?;
+
+      //find out which window account has the most recently filed point. 
+      let mut pointer_with_last_filed_point = window_end_pointer;
+      let mut cal_with_last_filed_point = window_end_cal;
+      if finished_at_window_start {
+        pointer_with_last_filed_point = window_start_pointer;
+        cal_with_last_filed_point = window_start_cal;
+      }
+
+      let voting_power = Self::get_current_protocol_voting_power(
+        pointer_with_last_filed_point,
+        cal_with_last_filed_point,
+        clock_sysvar_account,
+      )?;
+
+      msg!("client voting power is {}", client_voting_power);
+      msg!("the on chain protocol voting power is {}", voting_power);
+      Ok(())
+    }
+
+    pub fn process_user_voting_power_test(
       vesting_program: &Pubkey,
       accounts: &[AccountInfo],
       vesting_account_seed: [u8; 32],
@@ -1621,15 +1714,25 @@ impl Processor {
                 new_calendar_account_seed,
               )
             }
-            VestingInstruction::TestOnChainVotingPower {
+            VestingInstruction::TestUserOnChainVotingPower {
               vesting_account_seed,
               client_voting_power
             } => {
-              msg!("testing on chain voting power function!");
-              Self::process_voting_power_test(
+              msg!("testing user on chain voting power function!");
+              Self::process_user_voting_power_test(
                 vesting_program,
                 accounts,
                 vesting_account_seed,
+                client_voting_power,
+              )
+            }
+            VestingInstruction::TestProtocolOnChainVotingPower {
+              client_voting_power
+            } => {
+              msg!("testing protocol on chain voting power function!");
+              Self::process_protocol_voting_power_test(
+                vesting_program,
+                accounts,
                 client_voting_power,
               )
             }

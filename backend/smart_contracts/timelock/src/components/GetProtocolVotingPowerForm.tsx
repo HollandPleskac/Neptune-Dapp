@@ -20,9 +20,10 @@ import {
   getEraTs,
   getSeedWord,
   getLastFiledPoint,
-  calculateProtocolVotingPower,
   getEpochFromTs,
-} from '../commands/utils'
+  getEmptySchedule,
+} from '../commands/utils';
+import { protocolOnChainVotingPower, buildAllWindowIx } from "commands/main";
 import { useWallet } from '@solana/wallet-adapter-react';
 import * as anchor from "@project-serum/anchor";
 //import { protocolOnChainVotingPower } from "commands/main";
@@ -75,19 +76,24 @@ const ProtocolVotingPowerForm = (props: any) => {
   if (currentCalInfo == null) {
     console.log("there is no calendar account for the current era")
   } else {
-  //get the last filed point.
-  console.log("current cal account {}", currentCalAccount.toString());
-  let lastFiledPoint = await getLastFiledPoint(
-    currentCalAccount,
-    connection,
-    currentEraStartEpoch,
-  );
-  console.log("last filed point",lastFiledPoint)
-  //if the last filed point is not the current point, then we have some work to do. TODO.
-  //calculate the current protocol power based on the point's stats.
-  let protocolVotingPower = calculateProtocolVotingPower(lastFiledPoint, currentEpochTs)
-  console.log("protocol voting power is", protocolVotingPower);
-  //call an on chain function that can do the same. 
+
+    const ix = await protocolOnChainVotingPower(
+      connection, 
+      userPk,
+      currentEraStartEpoch,
+      currentEpoch,
+      currentEpochTs
+    );
+      //send transaction
+    const tx = await signTransactionInstructions(
+      connection,
+      userPk,
+      ix,
+    );
+
+    console.log("check the program log of the solana explorer to see the on chain voting power");
+    console.log(`Transaction for voting power test: ${tx}`);
+  
   }
 }
 

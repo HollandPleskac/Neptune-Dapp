@@ -14,6 +14,7 @@ import {
   createNewDataAccountInstruction,
   populateNewDataAccountInstruction,
   userOnChainVotingPowerIx,
+  protocolOnChainVotingPowerIx,
   newPointerIx,
   newCalendarIx,
   createDslopeIx,
@@ -36,6 +37,9 @@ import {
   getNewCalAccountSize,
   getAccountInfo,
   getEpochFromTs,
+  calculateProtocolVotingPower,
+  getLastFiledPoint,
+  getEmptySchedule,
 } from './utils';
 import { ContractInfo, Schedule, Point, VestingScheduleHeader } from './state';
 import { assert } from 'console';
@@ -332,11 +336,78 @@ export async function  userOnChainVotingPower(
   return instruction
 }
 
-export async function buildPointerAndCalendarIx(
+export async function  protocolOnChainVotingPower(
+  connection: Connection,
+  userPk: PublicKey,
+  currentEraStartEpoch: number,
+  currentEpoch: number,
+  currentEpochTs: number,
+): Promise<Array<TransactionInstruction>> {
+  let allIx: Array<TransactionInstruction> = [];
+
+  //get nuts and bolts of what we'll need. This should also be enough to create new 
+  //calendar accounts if we'll need the space to.
+  const [
+    windowIx,
+    windowStartPointer,
+    windowStartCal,
+    windowStartDslope,
+    windowEndPointer,
+    windowEndCal,
+    windowEndDslope,
+  ] = await buildAllWindowIx(
+    userPk,
+    connection,
+    currentEpoch,
+    currentEpochTs,
+  );
+  allIx = transferInstructions(windowIx, allIx);
+  console.log("window instructions", windowIx)
+
+  //get the last filed point.
+  console.log("current cal account {}", windowStartCal.toString());
+  let lastFiledPoint = await getLastFiledPoint(
+    windowStartCal,
+    connection,
+    currentEraStartEpoch,
+  );
+  console.log("last filed point",lastFiledPoint)
+  //if the last filed point is not the current point, then we have some work to do. TODO.
+  //calculate the current protocol power based on the point's stats.
+  let protocolVotingPower = calculateProtocolVotingPower(lastFiledPoint, currentEpochTs)
+  console.log("protocol voting power is", protocolVotingPower);
+
+  //build instructions to call on chain function that can do the same calculation.
+  let vpIx = [
+    protocolOnChainVotingPowerIx(
+      windowStartPointer,
+      windowStartCal,
+      windowStartDslope,
+      windowEndPointer,
+      windowEndCal,
+      windowEndDslope,
+      protocolVotingPower,
+    )
+  ];
+  console.log( {
+    vestingProgram: TOKEN_VESTING_PROGRAM_ID.toString(),
+    userPk:userPk.toString(),
+    windowStartPointer: windowStartPointer.toString(),
+    windowStartCal: windowStartCal.toString(),
+    windowStartDslope: windowStartDslope.toString(),
+    windowEndPointer: windowEndPointer.toString(),
+    windowEndCal: windowEndCal.toString(),
+    windowEndDslope: windowEndDslope.toString(),
+  })
+  console.log("vp ix", vpIx);
+  allIx = transferInstructions(vpIx, allIx);
+  console.log("all Ix", allIx);
+  return allIx
+}
+
+export async function buildAllWindowIx(
   userPk: PublicKey,
   connection: Connection,
-  oldSchedule: Schedule,
-  newSchedule: Schedule,
   currentEpoch: number,
   currentEpochTs: number
 ): Promise<Array<any>> {
@@ -348,8 +419,6 @@ export async function buildPointerAndCalendarIx(
     //each pointer account is derived from the unix timestamp of the first epoch it records
     //data for.
 
-    const newUnlockDateInSeconds = newSchedule.releaseTime.toNumber();
-    const [newUnlockEpoch, newUnlockEpochTs] = getEpochFromTs(newUnlockDateInSeconds)
     console.log("current epoch", currentEpoch);
     console.log ("currentEpochTs", currentEpochTs);
 
@@ -358,7 +427,6 @@ export async function buildPointerAndCalendarIx(
     //era and unlocking era here to handle the case where a user is locking and unlocking
     //tokens in the same era. In that case, only one pointer account will be needed. 
     const currentEraStartTs = getEraTs(currentEpochTs)
-    const newUnlockEraStart = getEraTs(newUnlockEpochTs)
 
     //needs for next steps
     //get the window start and window end accounts, the seeds to create them (if needed) and the
@@ -406,26 +474,6 @@ export async function buildPointerAndCalendarIx(
       winEndPointerInfo,
     );
     ix = transferInstructions(pointerAndCalIx, ix);
-
-    //write a function to get the pointer and dslope accounts for the new and old schedules.
-      //note that this will need to handle the case where a user is locking and unlocking tokens within the same era.
-      //we'll also need to handle the case where the user is creating a net new unlock position,
-      //which will require a dslope account creation instruction
-      const [
-      unlockDslopeIx,
-      newUnlockPointer,
-      newUnlockDslope,
-      oldUnlockPointer,
-      oldUnlockDslope
-    ] = await buildAllUnlockDslopeIx(
-      userPk,
-      connection,
-      newSchedule,
-      oldSchedule,
-      windowStartPointer,
-      windowEndPointer,
-    );
-    ix = transferInstructions(unlockDslopeIx, ix);
     
     //we've got everything we need!
     return [
@@ -436,10 +484,6 @@ export async function buildPointerAndCalendarIx(
       windowEndPointer,
       windowEndCal,
       windowEndDslope,
-      newUnlockPointer,
-      newUnlockDslope,
-      oldUnlockPointer,
-      oldUnlockDslope,
     ]
 }
 
@@ -664,7 +708,7 @@ export async function buildOnePointerIx(
   ]
 }
 
-async function buildAllUnlockDslopeIx(
+export async function buildAllUnlockDslopeIx(
   userPk: PublicKey,
   connection: Connection,
   newSchedule: Schedule,
