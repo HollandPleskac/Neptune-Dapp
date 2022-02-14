@@ -1,10 +1,10 @@
-import Button from '../../common/Button'
+import Button from 'components/common/Button'
 import WalletDetails from './WalletDetails'
 import BottomDetails from './BottomDetails'
-import RangeBar from '../../common/RangeBar'
+import RangeBar from 'components/common/RangeBar'
 import PercentButtons from './PercentButtons'
-import InputPicker from '../../common/InputPicker'
-import SettingsIcon from './../../../assets/SettingsIcon'
+import InputPicker from 'components/common/InputPicker'
+import SettingsIcon from 'assets/SettingsIcon'
 import styles from './rightDetails.module.scss'
 
 const RightDetails = () => {

@@ -18,7 +18,11 @@ module.exports = {
           light: "#3E66F9"
         },
         gray: {
-          light: "#353639"
+          light: "#353639",
+          faded: "rgba(255, 255, 255, 0.65)"
+        },
+        green: {
+          normal: "#25B38F"
         }
       },
       width: {
@@ -33,7 +37,8 @@ module.exports = {
       fontSize: {
         "10px": "0.63rem",
         "14px": "0.88rem"
-      }
+      },
+
     },
   },
   variants: {},
