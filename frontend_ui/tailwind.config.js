@@ -1,5 +1,5 @@
 module.exports = {
-  purge: ['./pages/**/*.{js,ts,jsx,tsx}','./components/**/*.{js,ts,jsx,tsx}'],
+  purge: ['./pages/**/*.{js,ts,jsx,tsx}', './components/**/*.{js,ts,jsx,tsx}'],
   // content: [
   //   "./pages/**/*.{js,jsx,ts,tsx}",
   // ],
@@ -11,36 +11,35 @@ module.exports = {
     extend: {
       colors: {
         dark: {
-          primary: "#17191D",
-          secondary: "#1E2024"
+          primary: '#17191D',
+          secondary: '#1E2024',
         },
         blue: {
-          light: "#3E66F9"
+          light: '#3E66F9',
         },
         gray: {
-          light: "#353639",
-          faded: "rgba(255, 255, 255, 0.65)"
+          light: '#353639',
+          faded: 'rgba(255, 255, 255, 0.65)',
         },
         green: {
-          normal: "#25B38F"
-        }
+          normal: '#25B38F',
+        },
       },
       width: {
-        body: "77rem",
-        dashboardLeft: "44.5rem",
-        dashboardRight: "31.5rem",
-        "104px": "6.5rem"
+        body: '77rem',
+        dashboardLeft: '44.5rem',
+        dashboardRight: '31.5rem',
+        '104px': '6.5rem',
       },
       padding: {
-        '2px': '2px'
+        '2px': '2px',
       },
       fontSize: {
-        "10px": "0.63rem",
-        "14px": "0.88rem"
+        '10px': '0.63rem',
+        '14px': '0.88rem',
       },
-
     },
   },
   variants: {},
   plugins: [],
-}
+};

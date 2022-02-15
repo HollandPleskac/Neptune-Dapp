@@ -5,11 +5,11 @@ import LineChart from 'components/common/LineChart';
 
 const lineChartDataDashboard = [
   {
-    name: "Deposit APY",
+    name: 'Deposit APY',
     data: [100, 200, 150, 160, 180, 200, 210],
   },
   {
-    name: "Borrow APY",
+    name: 'Borrow APY',
     data: [100, 50, 80, 60, 40, 30, 10],
   },
 ];
@@ -21,33 +21,33 @@ const lineChartOptionsDashboard = {
     },
   },
   tooltip: {
-    theme: "dark",
+    theme: 'dark',
   },
   dataLabels: {
     enabled: false,
   },
   stroke: {
-    curve: "smooth",
+    curve: 'smooth',
   },
   xaxis: {
     categories: [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep",
-      "Oct",
-      "Nov",
-      "Dec",
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ],
     labels: {
       style: {
-        colors: "#c8cfca",
-        fontSize: "12px",
+        colors: '#c8cfca',
+        fontSize: '12px',
       },
     },
     axisBorder: {
@@ -60,8 +60,8 @@ const lineChartOptionsDashboard = {
   yaxis: {
     labels: {
       style: {
-        colors: "#c8cfca",
-        fontSize: "12px",
+        colors: '#c8cfca',
+        fontSize: '12px',
       },
     },
   },
@@ -70,7 +70,7 @@ const lineChartOptionsDashboard = {
   },
   grid: {
     strokeDashArray: 5,
-    borderColor: "#56577A"
+    borderColor: '#56577A',
   },
   // fill: {
   //   type: "gradient",
@@ -86,84 +86,87 @@ const lineChartOptionsDashboard = {
   //   // },
   //   colors: ["#25B38F", "#ED6564"],
   // },
-  colors: ["#25B38F", "#ED6564"],
+  colors: ['#25B38F', '#ED6564'],
 };
-
-const historyButtons = ['1D', '7D', '1M', '3M', '6M', '1Y']
 
 const BottomDetails = () => {
   const [historyButtons, setHistoryButtons] = useState([
     {
       text: '1D',
-      active: false
+      active: false,
     },
     {
       text: '7D',
-      active: false
+      active: false,
     },
     {
       text: '1M',
-      active: true
+      active: true,
     },
     {
       text: '3M',
-      active: false
+      active: false,
     },
     {
       text: '6M',
-      active: false
+      active: false,
     },
     {
       text: '1Y',
-      active: false
+      active: false,
     },
-  ])
+  ]);
 
-  const handleClickHistoryButton = (activeButton: { text: string, active: boolean }) => {
+  const handleClickHistoryButton = (activeButton: {
+    text: string;
+    active: boolean;
+  }) => {
     const newButtons = historyButtons.map((hb) => {
       if (hb.text === activeButton.text) {
         return {
           ...hb,
-          active: true
-        }
+          active: true,
+        };
       }
       return {
         ...hb,
-        active: false
-      }
-    })
-    setHistoryButtons(newButtons)
-  }
+        active: false,
+      };
+    });
+    setHistoryButtons(newButtons);
+  };
 
   return (
     <>
-      <div className='flex justify-between w-full'>
+      <div className="flex justify-between w-full">
         <span>Historical APY</span>
-        <div className='flex bg-gray-light rounded p-2px'>
-          {
-            historyButtons.map((hb, i) => (
-              <Button key={i} text={hb.text} onClick={() => handleClickHistoryButton(hb)} 
-                className={cx({
-                  'neptune-button__bg-gray-light-small': !hb.active,
-                  'neptune-button__bg-gray-light-small-active': hb.active,
-                })} />
-            ))
-          }
+        <div className="flex bg-gray-light rounded p-2px">
+          {historyButtons.map((hb, i) => (
+            <Button
+              key={i}
+              text={hb.text}
+              onClick={() => handleClickHistoryButton(hb)}
+              className={cx({
+                'neptune-button__bg-gray-light-small': !hb.active,
+                'neptune-button__bg-gray-light-small-active': hb.active,
+              })}
+            />
+          ))}
         </div>
       </div>
       <LineChart
         lineChartData={lineChartDataDashboard}
         lineChartOptions={lineChartOptionsDashboard}
       />
-      <div className='flex justify-between w-full'>
-        <div className='flex'>
-          <span className='mr-4'>Deposit APY</span>
+      <div className="flex justify-between w-full">
+        <div className="flex">
+          <span className="mr-4">Deposit APY</span>
           <span>Borrow APY</span>
         </div>
         <div>Rewards APR Details</div>
       </div>
     </>
-  )
-}
+  );
+};
 
-export default BottomDetails
+export default BottomDetails;

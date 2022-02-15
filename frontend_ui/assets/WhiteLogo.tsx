@@ -1,6 +1,6 @@
 type Props = {
-  [key: string]: any
-}
+  [key: string]: any;
+};
 const SvgComponent = (props: Props) => (
   <svg
     width={154}
@@ -58,6 +58,6 @@ const SvgComponent = (props: Props) => (
       </filter>
     </defs>
   </svg>
-)
+);
 
-export default SvgComponent
+export default SvgComponent;

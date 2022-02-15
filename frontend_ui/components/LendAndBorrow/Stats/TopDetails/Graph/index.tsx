@@ -1,10 +1,10 @@
 import React from 'react';
 import SolLogo from 'assets/SolLogo';
 import styles from './donutGraph.module.scss';
-import GradientDonutChart from 'components/common/GradientDonutChart'
+import GradientDonutChart from 'components/common/GradientDonutChart';
 
 const series = [3456069, 1456069];
-const options =  {
+const options = {
   chart: {
     width: 200,
     height: 200,
@@ -15,11 +15,11 @@ const options =  {
       left: 0,
       blur: 3,
       color: ['#2D91EF', '#EF2D8A'],
-      opacity: 0.5
-    }
+      opacity: 0.5,
+    },
   },
   dataLabels: {
-    enabled: false
+    enabled: false,
   },
   fill: {
     type: 'solid',
@@ -31,7 +31,7 @@ const options =  {
   //     type: "vertical",
   //     shadeIntensity: 0,
   //     gradientToColors: undefined,
-  //     colorStops: [ 
+  //     colorStops: [
   //       [
   //         {
   //           offset: 0,
@@ -59,12 +59,12 @@ const options =  {
   //     ]
   //   }
   // },
-  colors:['#2D91EF', '#EF2D8A'],
+  colors: ['#2D91EF', '#EF2D8A'],
   stroke: {
     show: false,
   },
   legend: {
-    show: false
+    show: false,
     // formatter: function(val: string, opts: {[key:string]: any}) {
     //   return val + " - " + opts.w.globals.series[opts.seriesIndex]
     // }
@@ -80,7 +80,7 @@ const options =  {
   //     }
   //   }
   // }]
-}
+};
 
 const Graph = () => {
   return (
@@ -88,7 +88,7 @@ const Graph = () => {
       <SolLogo className={styles['neptune-donut-graph__sol-logo']} />
       <GradientDonutChart series={series} options={options} />
     </div>
-  )
-}
+  );
+};
 
-export default Graph
+export default Graph;
