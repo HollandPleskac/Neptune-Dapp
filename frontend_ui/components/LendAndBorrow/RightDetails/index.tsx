@@ -1,21 +1,37 @@
+import cx from 'classnames';
+import { useState } from 'react';
+
 import Button from 'components/common/Button';
+import RangeBar from 'components/common/RangeBar';
+import InputPicker from 'components/common/InputPicker';
+
 import WalletDetails from './WalletDetails';
 import BottomDetails from './BottomDetails';
-import RangeBar from 'components/common/RangeBar';
 import PercentButtons from './PercentButtons';
-import InputPicker from 'components/common/InputPicker';
+
 import SettingsIcon from 'assets/SettingsIcon';
 import styles from './rightDetails.module.scss';
 
 const RightDetails = () => {
+  const defaultClassNames = 'py-3 px-4 rounded-lg leading-4 font-bold';
+  const tabs = ['Lend', 'Borrow', 'Withdraw', 'Repay'];
+  const [tab, setTab] = useState(tabs[1]);
   return (
     <div className="w-dashboardRight bg-dark-secondary rounded-2xl p-8">
       <div className="flex justify-between">
         <div className="flex justify-between rightDetails-top-buttons">
-          <button className="mr-4">Deposit</button>
-          <button className="mr-4">Borrow</button>
-          <button className="mr-4">Withdraw</button>
-          <button>Repay</button>
+          {tabs.map((t, i) => (
+            <button
+              key={i}
+              onClick={() => setTab(t)}
+              className={cx(defaultClassNames, {
+                'bg-dark-primary text-white': tab === t,
+                'text-gray-faded': tab !== t,
+              })}
+            >
+              {t}
+            </button>
+          ))}
         </div>
         <div className="rightDetails-top-gear">
           <button>
