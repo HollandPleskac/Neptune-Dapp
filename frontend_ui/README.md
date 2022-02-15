@@ -3,9 +3,9 @@
 ## To make husky work
 
 Run `yarn prepare` on frontend_ui
-Husky pre-commit and pre-push should work
+Husky pre-commit and pre-push should work now
 
-# Workflow
+## Workflow
 
-When committing, eslint and prettier format will run
-When pushing all checks - typescript, eslint prettier will run and push your changes if it didn't find any errors
+When committing, eslint will run
+When pushing all checks - typescript, eslint prettier format will run and push your changes if it didn't find any errors
