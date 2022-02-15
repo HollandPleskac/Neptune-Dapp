@@ -1,8 +1,8 @@
-import type { NextPage } from 'next'
-import Head from 'next/head'
-import Navbar from '../components/common/Navbar'
-import Stats from '../components/LendAndBorrow/Stats'
-import RightDetails from '../components/LendAndBorrow/RightDetails'
+import type { NextPage } from 'next';
+import Head from 'next/head';
+import Navbar from '../components/common/Navbar';
+import Stats from '../components/LendAndBorrow/Stats';
+import RightDetails from '../components/LendAndBorrow/RightDetails';
 
 const Home: NextPage = () => {
   return (
@@ -15,8 +15,8 @@ const Home: NextPage = () => {
 
       <div className="w-body mx-auto">
         <Navbar />
-        <h5 className='mb-8 text-2xl text-gray-faded font-bold'>
-          {`< Back / Lend & Borrow / `} <span className='text-white'>SOL</span>
+        <h5 className="mb-8 text-2xl text-gray-faded font-bold">
+          {`< Back / Lend & Borrow / `} <span className="text-white">SOL</span>
         </h5>
         <main className="flex justify-between">
           <Stats />
@@ -27,7 +27,7 @@ const Home: NextPage = () => {
       {/* <footer className={styles.footer}>
       </footer> */}
     </div>
-  )
-}
+  );
+};
 
-export default Home
+export default Home;

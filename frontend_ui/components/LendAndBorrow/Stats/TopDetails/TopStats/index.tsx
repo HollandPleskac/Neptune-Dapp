@@ -1,27 +1,27 @@
-import cx from "classnames";
-import Image from "next/image";
-import SolLogo from "public/sol.png";
-import InfoIcon from "assets/InfoIcon";
+import cx from 'classnames';
+import Image from 'next/image';
+import SolLogo from 'public/sol.png';
+import InfoIcon from 'assets/InfoIcon';
 
 const TopStats = () => {
   const detailsWithSmallHeading = [
     {
-      heading: "Reserves Size",
-      detail: "$4,912,138",
+      heading: 'Reserves Size',
+      detail: '$4,912,138',
     },
     {
-      heading: "Utilization Rate",
-      detail: "29.64%",
+      heading: 'Utilization Rate',
+      detail: '29.64%',
     },
     {
-      heading: "Used as Collateral",
-      detail: "Yes",
-      detailColor: "text-green-normal",
+      heading: 'Used as Collateral',
+      detail: 'Yes',
+      detailColor: 'text-green-normal',
       withIcon: true,
     },
     {
-      heading: "Liquidation Penalty",
-      detail: "10%",
+      heading: 'Liquidation Penalty',
+      detail: '10%',
       withIcon: true,
     },
   ];
@@ -52,8 +52,8 @@ const TopStats = () => {
           </div>
           <p
             className={cx(
-              "font-bold text-base leading-5",
-              detail.detailColor ?? ""
+              'font-bold text-base leading-5',
+              detail.detailColor ?? '',
             )}
           >
             {detail.detail}

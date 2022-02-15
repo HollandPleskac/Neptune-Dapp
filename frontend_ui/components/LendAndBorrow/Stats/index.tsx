@@ -1,14 +1,10 @@
 import dynamic from 'next/dynamic';
 
-const BottomDetailsNoSSR = dynamic(  
-  () => import('./BottomDetails'),
-  { ssr: false }
-)
+const BottomDetailsNoSSR = dynamic(() => import('./BottomDetails'), {
+  ssr: false,
+});
 
-const TopDetailsNoSSR = dynamic(  
-  () => import('./TopDetails'),
-  { ssr: false }
-)
+const TopDetailsNoSSR = dynamic(() => import('./TopDetails'), { ssr: false });
 
 const LendAndBorrowStats = () => {
   return (
@@ -18,7 +14,7 @@ const LendAndBorrowStats = () => {
         <BottomDetailsNoSSR />
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default LendAndBorrowStats
+export default LendAndBorrowStats;

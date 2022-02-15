@@ -4,7 +4,7 @@ const WalletDetails = () => {
       <span>Wallet Balance: 213.19 SOL</span>
       <span>500 SOL Deposited</span>
     </div>
-  )
-}
+  );
+};
 
-export default WalletDetails
+export default WalletDetails;
