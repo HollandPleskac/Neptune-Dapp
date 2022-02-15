@@ -1,7 +1,7 @@
 import cx from 'classnames';
 import { useState } from 'react';
-import Button from '../../../common/Button';
-import LineChart from './../../../common/LineChart';
+import Button from 'components/common/Button';
+import LineChart from 'components/common/LineChart';
 
 const lineChartDataDashboard = [
   {
@@ -72,21 +72,21 @@ const lineChartOptionsDashboard = {
     strokeDashArray: 5,
     borderColor: "#56577A"
   },
-  fill: {
-    type: "gradient",
-    gradient: {
-      shade: "dark",
-      type: "vertical",
-      shadeIntensity: 0,
-      gradientToColors: undefined, // optional, if not defined - uses the shades of same color in series
-      inverseColors: true,
-      opacityFrom: 0.8,
-      opacityTo: 0,
-      stops: [],
-    },
-    colors: ["#2CD9FF", "#582CFF"],
-  },
-  colors: ["#2CD9FF", "#582CFF"],
+  // fill: {
+  //   type: "gradient",
+  //   // gradient: {
+  //   //   shade: "dark",
+  //   //   type: "vertical",
+  //   //   shadeIntensity: 0,
+  //   //   gradientToColors: undefined, // optional, if not defined - uses the shades of same color in series
+  //   //   inverseColors: true,
+  //   //   opacityFrom: 0.8,
+  //   //   opacityTo: 0,
+  //   //   stops: [],
+  //   // },
+  //   colors: ["#25B38F", "#ED6564"],
+  // },
+  colors: ["#25B38F", "#ED6564"],
 };
 
 const historyButtons = ['1D', '7D', '1M', '3M', '6M', '1Y']

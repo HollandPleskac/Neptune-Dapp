@@ -15,7 +15,9 @@ const Home: NextPage = () => {
 
       <div className="w-body mx-auto">
         <Navbar />
-        <h5 className='mb-8'>{`< Back / Lend & Borrow / SOL`}</h5>
+        <h5 className='mb-8 text-2xl text-gray-faded font-bold'>
+          {`< Back / Lend & Borrow / `} <span className='text-white'>SOL</span>
+        </h5>
         <main className="flex justify-between">
           <Stats />
           <RightDetails />
