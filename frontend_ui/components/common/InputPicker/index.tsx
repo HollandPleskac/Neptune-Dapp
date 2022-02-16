@@ -3,7 +3,7 @@ import SolLogo from 'assets/SolLogo';
 
 const InputPicker = ({ placeholder }: Props) => {
   const { Option } = components;
-  const CustomSelectOption = (props) => {
+  const CustomSelectOption = (props: ObjectType) => {
     return (
       <Option {...props}>
         {props.data.icon}
@@ -12,7 +12,7 @@ const InputPicker = ({ placeholder }: Props) => {
     );
   };
 
-  const CustomSelectValue = (props) => (
+  const CustomSelectValue = (props: ObjectType) => (
     <div className='relative flex w-8 h-8'>
       <span style={{ position: 'absolute', top: '-13px' }}>
         {props.data.icon}
@@ -26,7 +26,7 @@ const InputPicker = ({ placeholder }: Props) => {
   ];
 
   const customStyles = {
-    control: (base) => ({
+    control: (base: ObjectType) => ({
       ...base,
       height: 62,
       minHeight: 62,
@@ -38,16 +38,16 @@ const InputPicker = ({ placeholder }: Props) => {
       borderBottomRightRadius: 0,
       borderColor: 'rgba(255, 255, 255, 0.2)',
     }),
-    indicatorsContainer: (base) => ({
+    indicatorsContainer: (base: ObjectType) => ({
       ...base,
       width: '30px',
     }),
-    dropdownIndicator: (base) => ({
+    dropdownIndicator: (base: ObjectType) => ({
       ...base,
       padding: 0,
       marginLeft: '5px',
     }),
-    valueContainer: (base) => ({
+    valueContainer: (base: ObjectType) => ({
       ...base,
       width: '64px',
     }),
@@ -76,6 +76,10 @@ const InputPicker = ({ placeholder }: Props) => {
 
 type Props = {
   placeholder: string;
+};
+
+type ObjectType = {
+  [key: string]: any;
 };
 
 export default InputPicker;
