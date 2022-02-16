@@ -1,9 +1,9 @@
-import Select, { components } from 'react-select';
+import Select, { components, OptionProps } from 'react-select';
 import SolLogo from 'assets/SolLogo';
 
 const InputPicker = ({ placeholder }: Props) => {
   const { Option } = components;
-  const CustomSelectOption = (props: ObjectType) => {
+  const CustomSelectOption = (props: OptionProps) => {
     return (
       <Option {...props}>
         {props.data.icon}
