@@ -47,7 +47,7 @@ const TopStats = () => {
           <div className='text-xs leading-3 font-medium mb-2'>
             <span className='opacity-50'>{detail.heading}</span>
             <span className='ml-1 inline-block'>
-              {detail.withIcon && <InfoIcon text-white />}
+              {detail.withIcon && <InfoIcon className='text-white' />}
             </span>
           </div>
           <p

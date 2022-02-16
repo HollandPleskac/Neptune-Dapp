@@ -43,7 +43,7 @@ const RightDetails = () => {
       <WalletDetails />
       <InputPicker placeholder='250' />
       <PercentButtons />
-      <RangeBar indicatorPercent={30} />
+      <RangeBar indicatorPercent={80} />
       <BottomDetails />
       <Button
         text='Borrow SOL'
