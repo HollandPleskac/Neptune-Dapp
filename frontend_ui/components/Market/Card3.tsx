@@ -13,7 +13,7 @@ const Card3: React.FC = () => {
         />
       </div>
       <div>
-      <BasicCardText labelText="Rewards APR" value="3.03" valueLabel="%" />
+        <BasicCardText labelText="Rewards APR" value="3.03" valueLabel="%" />
         <div className="flex items-center mb-3 mt-6">
           <h5 className="text-xs mr-1">Claim Rewards</h5>
           <InfoIcon text-white />
