@@ -2,8 +2,8 @@ import ReactApexChart from 'react-apexcharts';
 
 const GradientDonutChart = ({ series, options }: Props) => {
   return (
-    <div id="chart">
-      <ReactApexChart options={options} series={series} type="donut" />
+    <div id='chart'>
+      <ReactApexChart options={options} series={series} type='donut' />
     </div>
   );
 };

@@ -138,9 +138,9 @@ const BottomDetails = () => {
 
   return (
     <>
-      <div className="flex justify-between w-full">
+      <div className='flex justify-between w-full'>
         <span>Historical APY</span>
-        <div className="flex bg-gray-light rounded p-2px">
+        <div className='flex bg-gray-light rounded p-2px'>
           {historyButtons.map((hb, i) => (
             <Button
               key={i}
@@ -158,9 +158,9 @@ const BottomDetails = () => {
         lineChartData={lineChartDataDashboard}
         lineChartOptions={lineChartOptionsDashboard}
       />
-      <div className="flex justify-between w-full">
-        <div className="flex">
-          <span className="mr-4">Deposit APY</span>
+      <div className='flex justify-between w-full'>
+        <div className='flex'>
+          <span className='mr-4'>Deposit APY</span>
           <span>Borrow APY</span>
         </div>
         <div>Rewards APR Details</div>

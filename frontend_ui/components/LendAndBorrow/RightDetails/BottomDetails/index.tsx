@@ -32,7 +32,7 @@ const BottomDetails = () => {
     },
   ];
   return (
-    <div className="bg-dark-primary rounded-lg p-6 mt-16 flex flex-col">
+    <div className='bg-dark-primary rounded-lg p-6 mt-16 flex flex-col'>
       {data.map((d, i) => (
         <div
           key={i}

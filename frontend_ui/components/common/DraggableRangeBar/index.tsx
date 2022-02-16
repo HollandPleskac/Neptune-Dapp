@@ -77,7 +77,7 @@ const DraggableRangeBar = () => {
           </div>
         )}
       />
-      <output style={{ marginTop: '30px' }} id="output">
+      <output style={{ marginTop: '30px' }} id='output'>
         {values[0].toFixed(1)}
       </output>
     </div>
