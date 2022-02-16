@@ -1,8 +1,5 @@
 import type { NextPage } from 'next';
-import Head from 'next/head';
 import Navbar from '../components/common/Navbar';
-import Stats from '../components/LendAndBorrow/Stats';
-import RightDetails from '../components/LendAndBorrow/RightDetails';
 import Card1 from '../components/Market/Card1';
 import Card2 from '../components/Market/Card2';
 import Card3 from '../components/Market/Card3';
