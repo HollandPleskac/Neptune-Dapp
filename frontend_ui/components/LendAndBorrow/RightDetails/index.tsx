@@ -18,7 +18,7 @@ const RightDetails = () => {
   const [tab, setTab] = useState(tabs[1]);
   return (
     <div className="w-dashboardRight bg-dark-secondary rounded-2xl p-8">
-      <div className="flex justify-between">
+      <div className="flex justify-between items-center">
         <div className="flex justify-between rightDetails-top-buttons">
           {tabs.map((t, i) => (
             <button
@@ -33,7 +33,7 @@ const RightDetails = () => {
             </button>
           ))}
         </div>
-        <div className="rightDetails-top-gear">
+        <div className="rightDetails-top-gear flex">
           <button>
             <SettingsIcon />
           </button>

@@ -1,5 +1,7 @@
 import cx from 'classnames';
-import TriangleWhitePointer from './../../../assets/TriangleWhitePointer';
+
+import TriangleWhitePointer from 'assets/TriangleWhitePointer';
+import InfoIcon from 'assets/InfoIcon';
 import styles from './rangeBar.module.scss';
 
 const RangeBar = ({ indicatorPercent }: Props) => {
@@ -14,10 +16,17 @@ const RangeBar = ({ indicatorPercent }: Props) => {
     }
   };
   return (
-    <div className="flex flex-col mt-6">
-      <span className="block text-14px">Loan to Value</span>
+    <div className='flex flex-col mt-6'>
+      <div className='flex items-center'>
+        <span className='block text-14px text-gray-faded font-medium leading-5'>
+          Loan to Value
+        </span>
+        <span className='ml-3 inline-block'>
+          <InfoIcon text-white />
+        </span>
+      </div>
       <div
-        className="w-full h-2 relative top-5 rounded-xl rounded-xl"
+        className='w-full h-2 relative top-5 rounded-xl'
         style={{ backgroundColor: 'rgba(255, 255, 255, 0.25)' }}
       >
         <span
@@ -38,13 +47,13 @@ const RangeBar = ({ indicatorPercent }: Props) => {
           Liquidation
         </span>
         <div
-          className="absolute left-0 h-2 rounded-tl-xl rounded-bl-xl"
+          className='absolute left-0 h-2 rounded-tl-xl rounded-bl-xl'
           style={{
             width: `${indicatorPercent}%`,
             backgroundColor: rangeBgColor(),
           }}
         >
-          <span className="absolute text-10px top-4" style={{ right: '-10px' }}>
+          <span className='absolute text-10px top-4' style={{ right: '-10px' }}>
             {indicatorPercent}%
           </span>
           <TriangleWhitePointer

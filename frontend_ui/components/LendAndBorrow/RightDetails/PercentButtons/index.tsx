@@ -5,7 +5,7 @@ const PercentButtons = () => {
       {percents.map((p, i) => (
         <button
           key={i}
-          className="rounded-lg border text-xs text-white w-104px p-2"
+          className="rounded-lg border border-gray-fadedMore text-xs text-white w-104px p-2 font-bold"
         >
           {p}
         </button>
