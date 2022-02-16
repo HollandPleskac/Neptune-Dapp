@@ -31,6 +31,9 @@ module.exports = {
         dashboardRight: '31.5rem',
         '104px': '6.5rem',
       },
+      height: {
+        marketCard: '13.375rem',
+      },
       padding: {
         '2px': '2px',
       },
