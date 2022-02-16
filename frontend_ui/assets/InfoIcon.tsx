@@ -3,16 +3,16 @@ type Props = {
 };
 const SvgComponent = (props: Props) => (
   <svg
-    width="10"
-    height="10"
-    viewBox="0 0 10 10"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
+    width='10'
+    height='10'
+    viewBox='0 0 10 10'
+    fill='none'
+    xmlns='http://www.w3.org/2000/svg'
     {...props}
   >
-    <circle cx="5" cy="5" r="5" fill="white" />
-    <circle cx="5" cy="2" r="1" fill="#1E2024" />
-    <rect x="4" y="4" width="2" height="5" rx="1" fill="#1E2024" />
+    <circle cx='5' cy='5' r='5' fill='white' />
+    <circle cx='5' cy='2' r='1' fill='#1E2024' />
+    <rect x='4' y='4' width='2' height='5' rx='1' fill='#1E2024' />
   </svg>
 );
 
