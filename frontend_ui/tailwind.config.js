@@ -20,6 +20,7 @@ module.exports = {
         gray: {
           light: '#353639',
           faded: 'rgba(255, 255, 255, 0.65)',
+          fadedMore: 'rgba(255, 255, 255, 0.2)',
         },
         green: {
           normal: '#25B38F',
@@ -35,8 +36,8 @@ module.exports = {
         '2px': '2px',
       },
       fontSize: {
-        '10px': '0.63rem',
-        '14px': '0.88rem',
+        '10px': '0.625rem',
+        '14px': '0.875rem',
       },
     },
   },
