@@ -46,7 +46,7 @@ import { assert } from 'console';
 import bs58 from 'bs58';
 import { 
   SCHEDULE_SIZE,
-  SECONDS_IN_WEEK,
+  SECONDS_IN_EPOCH,
   WEEKS_IN_ERA,
   ZERO_EPOCH,
   TOKEN_VESTING_PROGRAM_ID,
@@ -361,34 +361,27 @@ export async function  protocolOnChainVotingPower(
     currentEpoch,
     currentEpochTs,
   );
-  allIx = transferInstructions(windowIx, allIx);
   console.log("window instructions", windowIx)
+  allIx = transferInstructions(windowIx, allIx);
 
-  //get the last filed point.
-  console.log("current cal account {}", windowStartCal.toString());
-  let lastFiledPoint = await getLastFiledPoint(
-    windowStartCal,
-    connection,
-    currentEraStartEpoch,
-  );
-  console.log("last filed point",lastFiledPoint)
-  //if the last filed point is not the current point, then we have some work to do. TODO.
-  //calculate the current protocol power based on the point's stats.
-  let protocolVotingPower = calculateProtocolVotingPower(lastFiledPoint, currentEpochTs)
-  console.log("protocol voting power is", protocolVotingPower);
-
-  //build instructions to call on chain function that can do the same calculation.
+  //build instructions to call on chain function that can do the same calculation once the 
+  //protocol has been updated.
   let vpIx = [
     protocolOnChainVotingPowerIx(
+      userPk,
       windowStartPointer,
       windowStartCal,
       windowStartDslope,
       windowEndPointer,
       windowEndCal,
       windowEndDslope,
-      protocolVotingPower,
     )
   ];
+
+  console.log("vp ix", vpIx);
+  allIx = transferInstructions(vpIx, allIx);
+  console.log("all Ix", allIx);
+
   console.log( {
     vestingProgram: TOKEN_VESTING_PROGRAM_ID.toString(),
     userPk:userPk.toString(),
@@ -398,10 +391,8 @@ export async function  protocolOnChainVotingPower(
     windowEndPointer: windowEndPointer.toString(),
     windowEndCal: windowEndCal.toString(),
     windowEndDslope: windowEndDslope.toString(),
-  })
-  console.log("vp ix", vpIx);
-  allIx = transferInstructions(vpIx, allIx);
-  console.log("all Ix", allIx);
+  });
+
   return allIx
 }
 
@@ -449,6 +440,8 @@ export async function buildAllWindowIx(
     //write a function to determine the instructions needed for each of the window accounts
       //hardest part of this one will be finding out how much space will be needed for each of the
       //window start and window end calendar accounts, and if we'll need new accounts at all.
+
+    console.log('curent epoch', currentEpoch);
 
     const [
       pointerAndCalIx,
@@ -556,7 +549,7 @@ export async function buildAllPointerIx(
   } else {
     //the only time that the window start and window end should have equal timestamps is when
     //the first time anyone stakes anything in our protocol. 
-    console.log("staking protocol created");
+    console.log("staking protocol in its first epoch");
     windowEndCal = windowStartCal;
     windowEndDslope = windowStartDslope;
   }
@@ -584,8 +577,12 @@ export async function buildOnePointerIx(
   pointerInfo: Buffer | null,
 ): Promise<Array<any>> {
   let ix: Array<TransactionInstruction> = [];
-  let lastEpochInEra = (windowEraStartTs / SECONDS_IN_WEEK) + WEEKS_IN_ERA - 1;
-  let firstEpochInEra = windowEraStartTs / SECONDS_IN_WEEK;
+  let [firstEpochInEra, placeholder] = getEpochFromTs(windowEraStartTs);
+  let lastEpochInEra = firstEpochInEra + WEEKS_IN_ERA - 1;
+  console.log('window era start ts', windowEraStartTs);
+  console.log('firstEpochInEra', firstEpochInEra);
+  console.log('lastEpochInEra', lastEpochInEra);
+  console.log('current epoch', currentEpoch);
   let calAccount = userPk //placeholder
   let calSeed = "";
 
@@ -619,10 +616,11 @@ export async function buildOnePointerIx(
     const calAccountSize = await getNewCalAccountSize(
       connection,
       calAccount,
-      ZERO_EPOCH,
+      firstEpochInEra,
       currentEpoch,
       lastEpochInEra
     );
+    console.log('cal account size is ', calAccountSize);
     const createCalIx = newCalendarIx(
       userPk,
       calAccount, 
@@ -783,8 +781,8 @@ async function buildUnlockDslopeIx(
   //get the pointer account associated with the schedule's unlock time.
   let unlockTs = schedule.releaseTime.toNumber();
   let firstTsInUnlockEra = getEraTs(unlockTs);
-  let firstEpochInUnlockEra = firstTsInUnlockEra / SECONDS_IN_WEEK;
-  const seedWord = getPointerSeed(firstEpochInUnlockEra);
+  let [firstEpochInUnlockEra, placeholder] = getEpochFromTs(firstTsInUnlockEra);
+  const seedWord = getPointerSeed(firstTsInUnlockEra);
   console.log(seedWord);
   const arr = await deriveAccountInfo(
     seedWord,
@@ -804,10 +802,13 @@ async function buildUnlockDslopeIx(
   dslopeAccount = new PublicKey(dslopeArr[0]);
   console.log("dslope account", dslopeAccount.toString());
   const dslopeSeed = dslopeArr[2];
+  console.log("unlock pointerAccount", pointerAccount.toString());
+  console.log("unlock window start pointer", windowStartPointer.toString());
   
   //make sure the pointer account we've derived isn't one of the ones we'll be creating
-  //in an earlier instruction; 
-  if (pointerAccount == windowStartPointer || pointerAccount == windowEndPointer) {
+  //in an earlier instruction. Compare the string of the account public keys, not the
+  //PublicKey objects.
+  if (pointerAccount.toString() === windowStartPointer.toString() || pointerAccount.toString() === windowEndPointer.toString()) {
     //we don't need to actually do anything here. For this case, we just need the dslope
     //account key, which we already have above.
   } else {
@@ -826,14 +827,13 @@ async function buildUnlockDslopeIx(
         [dslopeSeed]
       );
       ix = transferInstructions(dslopeIx, ix);
-      let firstEpochInEra = getEraTs(schedule.releaseTime.toNumber()) / SECONDS_IN_WEEK;
       const create_pointer_ix = await newPointerIx(
         userPk,
         pointerAccount,
         [pointerSeed],
         TOKEN_VESTING_PROGRAM_ID, //we need a pubkey here for the cal account, so we'll just put in the program ID
         dslopeAccount,
-        firstEpochInEra
+        firstEpochInUnlockEra
       );
       ix = transferInstructions(create_pointer_ix, ix);
     } else {

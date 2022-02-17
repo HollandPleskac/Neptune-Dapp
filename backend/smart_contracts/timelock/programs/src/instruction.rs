@@ -174,9 +174,7 @@ pub enum VestingInstruction {
       client_voting_power:u64,
     },
 
-    TestProtocolOnChainVotingPower {
-      client_voting_power: u64,
-    }
+    TestProtocolOnChainVotingPower {},
 }
 
 impl VestingInstruction {
@@ -444,14 +442,7 @@ impl VestingInstruction {
             }
             //test on chain protocol voting power   
             24 => {
-              let client_voting_power = rest
-                .get(..8)
-                .and_then(|slice| slice.try_into().ok())
-                .map(u64::from_le_bytes)
-                .ok_or(InvalidInstruction)?;
-              Self::TestProtocolOnChainVotingPower {
-                client_voting_power,
-              }
+              Self::TestProtocolOnChainVotingPower {}
             }
             _ => {
                 msg!("Unsupported tag");
@@ -573,11 +564,8 @@ impl VestingInstruction {
               buf.extend_from_slice(vesting_account_seed);
               buf.extend_from_slice(&client_voting_power.to_le_bytes());
             }
-            Self::TestProtocolOnChainVotingPower{
-              client_voting_power,
-            } => {
+            Self::TestProtocolOnChainVotingPower{} => {
               buf.push(24);
-              buf.extend_from_slice(&client_voting_power.to_le_bytes());
             }
         };
         buf

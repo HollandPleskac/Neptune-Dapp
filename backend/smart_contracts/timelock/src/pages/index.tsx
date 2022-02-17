@@ -72,7 +72,7 @@ const Home: NextPage = (props) => {
           <Slider 
           min={0} 
           max={4} 
-          step={0.0001} 
+          step={0.0000001} 
           value={value} 
           onChange={handleChange}
           valueLabelDisplay='on' />

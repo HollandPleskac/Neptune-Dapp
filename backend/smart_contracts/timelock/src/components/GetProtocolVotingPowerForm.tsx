@@ -7,7 +7,7 @@ import {
 import {
   TOKEN_VESTING_PROGRAM_ID,
   NEPTUNE_MINT,
-  SECONDS_IN_WEEK,
+  SECONDS_IN_EPOCH,
 } from '../commands/const';
 import {
   Numberu64,
@@ -21,7 +21,8 @@ import {
   getSeedWord,
   getLastFiledPoint,
   getEpochFromTs,
-  getEmptySchedule,
+  calculateProtocolVotingPower,
+  getExistingCalAccount
 } from '../commands/utils';
 import { protocolOnChainVotingPower, buildAllWindowIx } from "commands/main";
 import { useWallet } from '@solana/wallet-adapter-react';
@@ -49,8 +50,8 @@ const ProtocolVotingPowerForm = (props: any) => {
   let todaysDate = new Date();
   let todaysDateInSeconds = new Numberu64(todaysDate.getTime() / 1_000).toNumber();
   let [currentEpoch, currentEpochTs] = getEpochFromTs(todaysDateInSeconds);
-  const currentEraStartTs = getEraTs(currentEpochTs);
-  const currentEraStartEpoch = currentEraStartTs / SECONDS_IN_WEEK;
+  let currentEraStartTs = getEraTs(currentEpochTs);
+  let [currentEraStartEpoch, placeholder] = getEpochFromTs(currentEraStartTs);
   const seed_word = getPointerSeed(currentEraStartTs);
   const arr = await deriveAccountInfo(
     seed_word,
@@ -62,33 +63,48 @@ const ProtocolVotingPowerForm = (props: any) => {
 
   //get the calendar account for the current era.
   //check the info of the calendar account
-  const calArr = await deriveAccountInfo(
-    getSeedWord(["calendar", currentPointerAccount]),
-    TOKEN_VESTING_PROGRAM_ID,
-    NEPTUNE_MINT
+  //ah, this breaks if we're not using the first calendar account created for the 
+  //protocol.
+  let pointerInfo = await getAccountInfo(
+    currentPointerAccount,
+    connection, 
   );
-  let currentCalAccount = calArr[0];
+  let currentCalAccount = getExistingCalAccount(pointerInfo);
   const currentCalInfo = await getAccountInfo(
     currentCalAccount,
     connection, 
   );
 
+  console.log(currentPointerAccount.toString());
+  console.log(currentCalAccount.toString());
+
   if (currentCalInfo == null) {
     console.log("there is no calendar account for the current era")
   } else {
 
+    //this transaction depends on having the protocol fully updated. Need to make sure that's 
+    //the case before we calculate voting power. 
     const ix = await protocolOnChainVotingPower(
       connection, 
       userPk,
       currentEraStartEpoch,
       currentEpoch,
-      currentEpochTs
+      currentEpochTs,
     );
-      //send transaction
+
     const tx = await signTransactionInstructions(
       connection,
       userPk,
       ix,
+    );
+
+    //get the protocol voting power now that the transaction to update the protocol has been
+    //sent out. 
+    let protocolVotingPower = await calculateProtocolVotingPower(
+      connection,
+      currentEpochTs,
+      currentEraStartEpoch,
+      currentEraStartTs,
     );
 
     console.log("check the program log of the solana explorer to see the on chain voting power");

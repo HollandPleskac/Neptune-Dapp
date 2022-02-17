@@ -10,8 +10,6 @@ import { connection, getAccountInfo, Numberu32, Numberu64, Numberu16 } from './u
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { 
   TOKEN_VESTING_PROGRAM_ID,
-  SECONDS_IN_WEEK,
-  ZERO_EPOCH
  } from './const';
 import { bytes } from '@project-serum/anchor/dist/cjs/utils';
 
@@ -53,7 +51,7 @@ export function createVestingAccountInstruction(
     {
       pubkey: payerKey,
       isSigner: true,
-      isWritable: true,
+      isWritable: false,
     },
     {
       pubkey: vestingAccountKey,
@@ -227,6 +225,9 @@ export function createUnlockInstruction(
     Buffer.concat(vestingAccountSeeds),
   ]);
 
+  //does the transaction not need a signer?
+  //no it doesn't, pretty sure it defaults to the fee payer if its not
+  //specified in the accounts?
   const keys = [
     {
       pubkey: tokenProgramId,
@@ -523,19 +524,18 @@ export function userOnChainVotingPowerIx(
 }
 
 export function protocolOnChainVotingPowerIx(
+  userPk: PublicKey,
   windowStartPointer: PublicKey,
   windowStartCal: PublicKey,
   windowStartDslope: PublicKey,
   windowEndPointer: PublicKey,
   windowEndCal: PublicKey,
   windowEndDslope: PublicKey,
-  clientVotingPower: number
 ): TransactionInstruction {
 
   let buffers = [
     Buffer.from(Int8Array.from([24]).buffer), //len 1
     //Buffer.from(Float32Array.from([clientVotingPower]).buffer) //len 4
-    new Numberu64(clientVotingPower).toBuffer() //len 8
   ];
   
   const data = Buffer.concat(buffers);
@@ -555,7 +555,7 @@ export function protocolOnChainVotingPowerIx(
     {
       pubkey: windowStartDslope,
       isSigner: false,
-      isWritable: false,
+      isWritable: true,
     },
     {
       pubkey: windowEndPointer,
@@ -570,7 +570,7 @@ export function protocolOnChainVotingPowerIx(
     {
       pubkey: windowEndDslope,
       isSigner: false,
-      isWritable: false,
+      isWritable: true,
     },
     {
       pubkey: SYSVAR_CLOCK_PUBKEY,
@@ -620,7 +620,6 @@ export function createCalendarIx(
     Buffer.concat(seed), //len 32
     new Numberu64(accountSize).toBuffer()
   ];
-  console.log("cal account size is ", accountSize);
   const data = Buffer.concat(buffers);
   const keys = [
     {
@@ -663,11 +662,13 @@ export function populateCalendarIx(
   ];
   const data = Buffer.concat(buffers);
   const keys = [
+    /*
     {
       pubkey: userPk,
       isSigner: true,
       isWritable: false,
     },
+    */
     {
       pubkey: calAccount,
       isSigner: false,
@@ -676,7 +677,7 @@ export function populateCalendarIx(
     {
       pubkey: SYSVAR_CLOCK_PUBKEY,
       isSigner: false,
-      isWritable: true,
+      isWritable: false,
     },
   ]
 
@@ -864,12 +865,12 @@ export function transferCalendarDataIx(
     {
       pubkey: new_cal_account,
       isSigner: false,
-      isWritable: false,
+      isWritable: true,
     },
     {
       pubkey: old_cal_account,
       isSigner: false,
-      isWritable: false,
+      isWritable: true,
     },
   ]
 

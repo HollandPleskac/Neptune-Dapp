@@ -14,7 +14,6 @@ import {
   TOKEN_VESTING_PROGRAM_ID,
   MAX_BOOST,
   NEPTUNE_MINT,
-  SECONDS_IN_WEEK
 } from '../commands/const';
 import {
   Numberu64,
@@ -48,8 +47,6 @@ const InitializeLockForm = (props: any) => {
   const initializeLock = async (
   ) => {
   
-  const react1=require('react');
-  const react2 = require('react');
   console.log("slider amount", props.yearsToLock);
   const mintPk = NEPTUNE_MINT;
   console.log("mint PK", mintPk);
@@ -135,7 +132,12 @@ const InitializeLockForm = (props: any) => {
 
   const lock = async () => {
 
-    var allInstructions: Array<TransactionInstruction> = [];
+    let allInstructions: Array<TransactionInstruction> = [];
+    // need to split this into two transactions because single transactions can be too large.
+    //wait... but then we get into some weirdness where one transaction fails and another 
+    //doesnt... that could cause some big problems. May need to think about this. 
+    let infrastructureIx: Array<TransactionInstruction> = [];
+    let userIx: Array<TransactionInstruction> = [];
 
     await checks();
 
@@ -171,7 +173,7 @@ const InitializeLockForm = (props: any) => {
       currentEpoch,
       currentEpochTs,
     );
-    allInstructions = transferInstructions(windowInstructions, allInstructions);
+    infrastructureIx = transferInstructions(windowInstructions, infrastructureIx);
 
     //write a function to get the pointer and dslope accounts for the new and old schedules.
     //note that this will need to handle the case where a user is locking and unlocking tokens within the same era.
@@ -191,7 +193,7 @@ const InitializeLockForm = (props: any) => {
       windowStartPointer,
       windowEndPointer,
     );
-    allInstructions = transferInstructions(unlockDslopeIx, allInstructions);
+    infrastructureIx = transferInstructions(unlockDslopeIx, infrastructureIx);
 
     //VESTING ACCOUNT HANDLING
     //get the key of the vesting acount based on the user's public key and the program's public key.
@@ -274,7 +276,7 @@ const InitializeLockForm = (props: any) => {
         oldUnlockPointer,
         oldUnlockDslope,
       );
-      allInstructions = transferInstructions(createVestingInstructions, allInstructions);
+      userIx = transferInstructions(createVestingInstructions, userIx);
 
     } else {
       console.log("Adding token schedules to this user's vesting account!");
@@ -349,23 +351,31 @@ const InitializeLockForm = (props: any) => {
         oldUnlockPointer,
         oldUnlockDslope,
       )
-      allInstructions = transferInstructions(userDataAccountIx, allInstructions);
+      userIx = transferInstructions(userDataAccountIx, userIx);
     };
 
-    console.log("instruction successful", allInstructions);
-  
-    const tx = await signTransactionInstructions(
+    if (infrastructureIx[0] !== undefined ) {
+      console.log("infrastruture instruction successful", infrastructureIx);
+      const infraTx = await signTransactionInstructions(
+        connection,
+        userPk,
+        infrastructureIx,
+      );
+      console.log(`Transaction for building infrastructure: ${infraTx}`);
+    }
+
+    console.log("user instruction successful", userIx);
+    const userTx = await signTransactionInstructions(
       connection,
       userPk,
-      allInstructions,
+      userIx,
     );
+    console.log(`Transaction for building user info: ${userTx}`);
 
     const account_check_post = await getAccountInfo(vestingAccountKey, connection);
     console.log("vesting account data post create transaction", account_check_post);
     const data_check_post = await getAccountInfo(dataAccountKey, connection);
     console.log("data account data post create transaction", data_check_post);
-  
-    console.log(`Transaction for token locking: ${tx}`);
   };
   
   lock();

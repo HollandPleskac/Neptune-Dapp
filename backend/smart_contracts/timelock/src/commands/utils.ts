@@ -12,6 +12,8 @@ import {
   PublicKey,
   SYSVAR_RENT_PUBKEY,
   SendOptions,
+  SystemProgram,
+  clusterApiUrl
 } from '@solana/web3.js';
 import { Schedule, Point, VestingScheduleHeader } from './state';
 import {getAccountInfo} from './async'
@@ -20,9 +22,10 @@ import {
   MAX_BOOST, 
   MAX_LOCK_TIME, 
   SCHEDULE_SIZE,
-  SECONDS_IN_WEEK,
+  SECONDS_IN_EPOCH,
   WEEKS_IN_ERA,
   ZERO_EPOCH,
+  ZERO_EPOCH_TS,
   TOKEN_VESTING_PROGRAM_ID,
   NEPTUNE_MINT
 } from './const';
@@ -242,7 +245,7 @@ export function getUserVotingPower(
     let [releaseEpoch, releaseEpochTs] = getEpochFromTs(releaseTimeSeconds);
     let remainingLockTime = releaseEpochTs - currentTimeSeconds;
     let creationEpoch = oneSchedule.creationEpoch.toNumber();
-    let creationTs = creationEpoch * SECONDS_IN_WEEK;
+    let creationTs = getTsFromEpoch(creationEpoch);
     //want the amount in lamports, since that's how the on chain slope and bias are found
     let amount = getScheduleAmount(oneSchedule) * 1000000000;
 
@@ -375,18 +378,34 @@ export const signTransactionInstructions = async (
   tx.add(...txInstructions);
   const {blockhash} = await connection.getRecentBlockhash();
   tx.recentBlockhash = blockhash;
-  const options: SendOptions = {
-    skipPreflight: true
-  };
-  try {
-    const { signature } = await window.solana.signAndSendTransaction(tx, options);
-    console.log("transaction", tx);
-    console.log("signature", signature);
-    //return await connection.confirmTransaction(signature);
-  } catch(err) {
-    console.log(err);
-    console.log("Error:" + JSON.stringify(err));
-  }
+  if (window.solflare.isConnected) {
+    //solflare stuff
+    try {
+      console.log('solflare');
+      const signedTransaction = await window.solflare.signTransaction(tx);
+      const signature = await connection.sendRawTransaction(signedTransaction.serialize());
+      console.log("signature",signature);
+      await connection.confirmTransaction(signature);
+    } catch(err) {
+      console.log(err);
+      console.log("Error: ", JSON.stringify(err));
+    }
+  } else {
+    // phantom stuff
+    console.log('phantom');
+    const options: SendOptions = {
+      skipPreflight: true
+    };
+    try {
+      const { signature } = await window.solana.signAndSendTransaction(tx, options);
+      console.log("transaction", tx);
+      console.log("signature", signature);
+      //return await connection.confirmTransaction(signature);
+    } catch(err) {
+      console.log(err);
+      console.log("Error:" + JSON.stringify(err));
+    }
+}
 };
 
 //adds the ixs in sourceIx array to destIx array
@@ -429,7 +448,7 @@ export async function getWindowPointerAccountsAndData(
 ): Promise<Array<any>> { 
   //check to see if there is a pointer account for the given era start timestamp.
   const seed_word = getPointerSeed(currentEraStartTs);
-  let firstEpochInEra = currentEraStartTs / SECONDS_IN_WEEK;
+  let [firstEpochInCurrentEra, placeholder] = getEpochFromTs(currentEraStartTs);
   const arr = await deriveAccountInfo(
     seed_word,
     TOKEN_VESTING_PROGRAM_ID,
@@ -445,16 +464,16 @@ export async function getWindowPointerAccountsAndData(
   console.log("pointer account", currentPointerAccount.toString());
 
   //init some vars here so we can use them again outside the if statement.
-  var currentCalAccount = "";
-  var currentCalSeed = "";
+  let currentCalAccount = "";
+  let currentCalSeed = "";
 
   //find out if the current pointer is the window start or not.
-  var currentEraIsWindowStart = false;
-  if (currentPointerInfo == null && firstEpochInEra != ZERO_EPOCH) {
+  let currentEraIsWindowStart = false;
+  if (currentPointerInfo == null && firstEpochInCurrentEra != ZERO_EPOCH) {
     //there isn't a pointer account initialized for the current timeframe. 
     //the current era is the window end. The previous era is the window start
     //do nothing, since we've set the flag the way we want
-  } else if (firstEpochInEra == ZERO_EPOCH) {
+  } else if (firstEpochInCurrentEra == ZERO_EPOCH) {
     //we're initializing our voting system. This is the only case where there isn't a pointer
     //account, but we want the current era to be the window start.
     currentEraIsWindowStart = true;
@@ -475,12 +494,15 @@ export async function getWindowPointerAccountsAndData(
     );
     console.log("calendar account", currentCalAccount.toString());
 
-    if (currentCalInfo == null) {
-      //there isn't a calendar account initialized for the current timeframe.
+    if ((currentCalInfo == null) || (currentCalInfo.data.length === 3)) { 
+      //either there isn't a calendar account initialized for the current timeframe, or the
+      //calendar account that's been created doesn't have any points filed to it.
+
       //the current era is the window end. the last era is the window start.
       //do nothing, since the flag is set the way we want.
     } else {
-      //there is a calendar account initialized for the current timeframe. 
+      //there is a calendar account initialized for the current timeframe, and it has had 
+      //point data filed to it. 
       //the current era is the window start. the next era is the window end. 
       //set the flag to the value we need it to be
       currentEraIsWindowStart = true;
@@ -493,15 +515,15 @@ export async function getWindowPointerAccountsAndData(
   let windowEndEraTs = ""
   if (currentEraIsWindowStart) {
     windowStartEraTs = currentEraStartTs;
-    windowEndEraTs = currentEraStartTs + (SECONDS_IN_WEEK * WEEKS_IN_ERA);
+    windowEndEraTs = currentEraStartTs + (SECONDS_IN_EPOCH * WEEKS_IN_ERA);
     //handle the zero era case where we're initializing everything. The end result is that
     //we will fill in the window from the zero epoch to the current epoch.
     //unless of course, we're over 6 months past the zero epoch, which will break everything.
-    if (windowStartEraTs == (ZERO_EPOCH * SECONDS_IN_WEEK)) {
+    if (currentEpoch == ZERO_EPOCH) {
       windowEndEraTs = windowStartEraTs
     }
   } else {
-    windowStartEraTs = currentEraStartTs - (SECONDS_IN_WEEK * WEEKS_IN_ERA);
+    windowStartEraTs = currentEraStartTs - (SECONDS_IN_EPOCH * WEEKS_IN_ERA);
     windowEndEraTs = currentEraStartTs;
   }
   
@@ -547,7 +569,7 @@ async function deriveWindowPointerAccountsAndData(
   const pointerInfo = await getAccountInfo(
     pointerAccount,
     connection, 
-  )
+  );
   return [
     pointerAccount,
     pointerSeed,
@@ -556,12 +578,15 @@ async function deriveWindowPointerAccountsAndData(
 }
 
 export function getExistingCalAccount(
-  pointerInfo: Buffer,
+  pointerInfo: Buffer | null,
 ): PublicKey {
-  //cal account key starts at the 3rd byte of data and is 32 bytes long. 
-  const calBytes = pointerInfo.data.slice(2,34);
-  console.log("calbytes",calBytes)
-  return new PublicKey(calBytes);
+  if (pointerInfo === null) {
+    return null
+  } else {
+    //cal account key starts at the 3rd byte of data and is 32 bytes long. 
+    const calBytes = pointerInfo.data.slice(2,34);
+    return new PublicKey(calBytes);
+  }
 }
 
 export async function getLastFiledEpoch(
@@ -592,7 +617,7 @@ export async function getLastFiledPoint(
   );
   //point data starts at the 4th byte in the calendar's data
   let allPointData = calInfo.data.slice(3);
-  let diff = lastFiledEpoch - currentEraStartEpoch
+  let diff = lastFiledEpoch - currentEraStartEpoch;
   console.log("last filed epoch", lastFiledEpoch);
   console.log("current era start epoch", currentEraStartEpoch);
   console.log("diff",diff);
@@ -603,26 +628,60 @@ export async function getLastFiledPoint(
   return Point.unpack(pointData)
 }
 
-export function calculateProtocolVotingPower(
-  point: Point,
-  currentTs: number
+export async function calculateProtocolVotingPower(
+  connection: Connection,
+  currentTs: number,
+  currentEraStartEpoch: number,
+  currentEraStartTs: number,
 ): number {
-  //just for now! This is a lot more complex in reality.
-  let pointTs = point.epoch * SECONDS_IN_WEEK;
-  let votingPower = point.bias - point.slope * (currentTs - pointTs);
+  //now that the protocol has been updated, get the protocol voting power and log it to the console 
+  //get the last filed point. first get the pointer account for the current epoch. 
+  let seedWord = getPointerSeed(currentEraStartTs);
+  const arr = await deriveAccountInfo(
+    seedWord,
+    TOKEN_VESTING_PROGRAM_ID,
+    NEPTUNE_MINT,
+  );
+  let currentPointerAccount = arr[0];
+
+
+  //then get the calendar account from the pointer. 
+  let pointerInfo = await getAccountInfo(
+    currentPointerAccount,
+    connection, 
+  );
+  let calAccount = getExistingCalAccount(pointerInfo);
+  
+  //then get the last filed point from the calendar
+  let lastFiledPoint = await getLastFiledPoint(
+    calAccount,
+    connection,
+    currentEraStartEpoch,
+  );
+  console.log('last filed point is', lastFiledPoint);
+
+
+  //finally, calculate the voting power from the point.
+  let pointTs = getTsFromEpoch(lastFiledPoint.epoch);
+  let votingPower = lastFiledPoint.bias - lastFiledPoint.slope * (currentTs - pointTs);
+  console.log('protocol voting power is', votingPower);
   //return Math.floor(votingPower / 1000000000) //not in lamports to make it more human readable.
   return votingPower
 }
 
-
+export function getTsFromEpoch(
+  epoch: number
+): number {
+  return ((epoch * SECONDS_IN_EPOCH) + ZERO_EPOCH_TS)
+}
 
 //given a timestamp in seconds, return the epoch that timestamp belongs in and the timestamp 
 //of that epoch in seconds
 export function getEpochFromTs(
   ts: number
 ): Array<number> {
-  let epoch = Math.floor(ts / SECONDS_IN_WEEK)
-  let epochTs = epoch * SECONDS_IN_WEEK
+  let epoch = Math.floor((ts - ZERO_EPOCH_TS) / SECONDS_IN_EPOCH)
+  let epochTs = getTsFromEpoch(epoch);
   return [epoch, epochTs]
 }
 
@@ -644,16 +703,20 @@ export async function getNewCalAccountSize(
     //for the header
     calSize = 3;
   } else {
-    calSize = calInfo.data.length();
+    calSize = calInfo.data.length;
   }
   let checkEpoch = startingEpoch;
   let continueFlag = true;
-  while (continueFlag) {
-    calSize += CAL_ENTRY_SIZE;
-    if (checkEpoch == currentEpoch || checkEpoch == lastEpochInEra) {
-      continueFlag = false;
+
+  //expand the calendar account if it needs to be larger. 
+  if (startingEpoch <= currentEpoch) {
+    while (continueFlag) {
+      calSize += CAL_ENTRY_SIZE;
+      if (checkEpoch == currentEpoch || checkEpoch == lastEpochInEra) {
+        continueFlag = false;
+      }
+      checkEpoch += 1;
     }
-    checkEpoch += 1;
   }
   return calSize
 }
@@ -668,10 +731,9 @@ export function getEraTs(
   //starts at the protocol's zero epoch. iterates through the timestamps for the timeframes each pointer 
   //account represents until we find the timestamp where our parameter fits.
   //for our purposes, zero epoch of our protocol is 1/6/22 0000 GMT
-  const zero_epoch_ts = SECONDS_IN_WEEK * ZERO_EPOCH;
-  const seconds_in_era = SECONDS_IN_WEEK * WEEKS_IN_ERA
-  var left_ts = zero_epoch_ts;
-  var right_ts = zero_epoch_ts + seconds_in_era;
+  const seconds_in_era = SECONDS_IN_EPOCH * WEEKS_IN_ERA
+  var left_ts = ZERO_EPOCH_TS;
+  var right_ts = ZERO_EPOCH_TS + seconds_in_era;
   var check = true
   while (check) {
     if (left_ts <= ts && ts < right_ts) {
