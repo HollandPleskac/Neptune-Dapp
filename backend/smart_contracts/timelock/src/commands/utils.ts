@@ -664,6 +664,9 @@ export async function calculateProtocolVotingPower(
   //finally, calculate the voting power from the point.
   let pointTs = getTsFromEpoch(lastFiledPoint.epoch);
   let votingPower = lastFiledPoint.bias - lastFiledPoint.slope * (currentTs - pointTs);
+  if (votingPower < 0) {
+    votingPower = 0
+  }
   console.log('protocol voting power is', votingPower);
   //return Math.floor(votingPower / 1000000000) //not in lamports to make it more human readable.
   return votingPower

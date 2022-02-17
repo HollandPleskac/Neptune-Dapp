@@ -38,12 +38,12 @@ pub const MAX_BOOST: f32 = 2.5;
 //seconds in year * 4 years = seconds in 4 years: our max lock time. 
 pub const MAX_LOCK_TIME: u64 = 31557600 * 4;
 
-//pub const SECONDS_IN_EPOCH: u64 = 604800; //seconds in an epoch
-pub const SECONDS_IN_EPOCH: u64 = 300; //5 mins. for testing purposes
+pub const SECONDS_IN_EPOCH: u64 = 604800; //seconds in an epoch
+//pub const SECONDS_IN_EPOCH: u64 = 300; //5 mins. for testing purposes
 pub const EPOCHS_IN_ERA: u16 = 26; //6 months
 //epochs is number of weeks since our protocol's zero time. Not Solana epochs
-//pub const ZERO_EPOCH_TS: u64 = 1_641_427_200; //# of seconds since the unix zero time and our protocol's zero time (1/6/22 0000 GMT). 
-pub const ZERO_EPOCH_TS: u64 = 1645039800; //1430
+pub const ZERO_EPOCH_TS: u64 = 1_641_427_200; //# of seconds since the unix zero time and our protocol's zero time (1/6/22 0000 GMT). 
+//pub const ZERO_EPOCH_TS: u64 = 	1645127520; //1452
 pub const I128_SIZE: usize = 16;
 pub const LAMPORT_NUMBER: u64 = 1000000000;
 
@@ -192,21 +192,20 @@ impl Processor {
     pub fn get_user_voting_power(
       schedules: Vec<VestingSchedule>,
       clock_sysvar_account: &AccountInfo
-    ) -> Result<u64, ProgramError> {
+    ) -> Result<i128, ProgramError> {
       //setup what we need
-      let num_of_schedules = schedules.len() as i32;
       let mut voting_power_vec = Vec::new();
       let current_epoch = Self::get_current_epoch(clock_sysvar_account)?;
-      let current_epoch_ts = Self::get_ts_from_epoch(current_epoch)?;
+      let current_epoch_ts = Self::get_ts_from_epoch(current_epoch)? as i128;
 
       //iterate through schedules 
       for s in schedules.iter() {
-        let mut amount = s.amount;
-        let release_time_ts = s.release_time;
+        let amount = s.amount;
+        let release_time_ts = s.release_time as i128;
         let creation_epoch = s.creation_epoch;
-        let creation_ts = Self::get_ts_from_epoch(creation_epoch)?;
-        let slope = amount / MAX_LOCK_TIME;
-        let bias = slope * (release_time_ts - creation_ts);
+        let creation_ts = Self::get_ts_from_epoch(creation_epoch)? as i128;
+        let slope = (amount / MAX_LOCK_TIME) as i128;
+        let bias = slope * (release_time_ts - creation_ts); //i128
 
         //calculate voting power for this schedule
         let mut voting_power = bias - (slope * (current_epoch_ts - creation_ts));
@@ -218,17 +217,19 @@ impl Processor {
         if voting_power < 0 {
           voting_power = 0;
         }
+        msg!("one voting power is {}", voting_power);
         voting_power_vec.push(voting_power);
       }
 
+      msg!("voting power vector {:?}", voting_power_vec);
       //sum the voting powers
       let mut sum = 0;
-      for one_voting_power in voting_power_vec.iter() {
+      for one_voting_power in voting_power_vec {
         sum += one_voting_power;
       }
 
       //return the average voting power. divide by lamport number to make it more readable.
-      return Ok(sum / LAMPORT_NUMBER)
+      return Ok(sum)
     }
 
     pub fn get_current_protocol_voting_power(
@@ -240,12 +241,17 @@ impl Processor {
         pointer_account,
         cal_account,
       )?;
+      
       let current_epoch = Self::get_current_epoch(clock_sysvar_account)?;
       let current_epoch_ts = Self::get_ts_from_epoch(current_epoch)? as i128;
       let point_ts = Self::get_ts_from_epoch(last_filed_point.epoch)? as i128;
 
+      msg!("last filed point {:?}", last_filed_point);
+      msg!("last current epoch ts {}", current_epoch_ts);
+      msg!("point ts {}", point_ts);
+
       let mut voting_power = last_filed_point.bias - last_filed_point.slope * (current_epoch_ts - point_ts);
-      voting_power = voting_power / LAMPORT_NUMBER as i128;
+      //voting_power = voting_power / LAMPORT_NUMBER as i128;
       if voting_power < 0 {
         voting_power = 0;
       }
@@ -305,13 +311,14 @@ impl Processor {
     pub fn get_first_epoch_in_new_era(
       current_ts: u64
     ) -> Result<u16, ProgramError> {
+      //TODO: throw an error if current_ts is before zero epoch ts, since that will
+      //cause an infinite loop
       let seconds_in_era = SECONDS_IN_EPOCH * EPOCHS_IN_ERA as u64;
       let mut left_ts = ZERO_EPOCH_TS;
       let mut right_ts = ZERO_EPOCH_TS + seconds_in_era;
       let mut check = true;
       while check {
         if left_ts <= current_ts && current_ts < right_ts {
-          check = false;
           break
         } else {
           left_ts += seconds_in_era;
@@ -350,7 +357,7 @@ impl Processor {
 
       //find out where the point object we're looking for lives
       let diff = (last_filed_epoch - first_epoch_in_era) as usize;
-      let offset = (CalendarAccountHeader::LEN);
+      let offset = CalendarAccountHeader::LEN;
       let first_index = offset + (diff * Point::LEN );
       Ok(first_index)
     }
@@ -372,10 +379,11 @@ impl Processor {
     ) -> Result<i128, ProgramError> {
       //TODO => make sure the dslope account is found within the pointer account. 
       
-      //ta will be zero when we pass in an empty schedule while getting
-      //the old dslope value. dslope should be zero in that case: we won't have any previous
-      //changes we'd need to revise for that user's dslope. We'd only need to touch the new
-      //unlock dslope account.
+      //ts will be zero when we're creating a new schedule because we pass in an empty 
+      //schedule as the old schedule.
+      //dslope should be zero in that case: we won't have any previous scheduled dslope 
+      //changes we need to revise for that user's previous position. We'd only need to touch
+      //the new unlock dslope account.
       let mut dslope: i128 = 0;
       if ts != 0 {
         let era_starting_epoch = Self::get_first_epoch_in_era(pointer_account)?;
@@ -384,9 +392,9 @@ impl Processor {
         let first_byte_index = (dslope_index * I128_SIZE) as usize;
         let second_byte_index = ((1 + dslope_index) * I128_SIZE) as usize;
         
-        msg!("unlock epoch {}", unlock_epoch);
-        msg!("era start epoch {}", era_starting_epoch);
-        msg!("get dslope first dslope index {}", first_byte_index);
+        //msg!("unlock epoch {}", unlock_epoch);
+        //msg!("era start epoch {}", era_starting_epoch);
+        //msg!("get dslope first dslope index {}", first_byte_index);
         //msg!("get dslope pointer {}", pointer_account.key);
         //msg!("get dslope dslope account {}", dslope_account.key);
         
@@ -579,6 +587,9 @@ impl Processor {
       //get nuts and bolts we'll need for the deposit
       let amount_to_transfer = Self::get_and_validate_tokens_in_schedule(&schedule)?;
       let updated_schedule = schedule[0].clone();
+
+      //for now, our "old schedule" will be an empty schedule. I handle this case in my code,
+      //but we want the old schedule to be the user's previous position eventually.
       let empty_schedule = Self::get_empty_schedule()?;
       
       Self::deposit(
@@ -851,6 +862,9 @@ impl Processor {
       let new_schedule = new_schedules[0].clone();
       msg!("new schedule release time {}", new_schedule.release_time);
       msg!("new schedule tokens {}", new_schedule.amount);
+
+      //for now, our "old schedule" will be an empty schedule. I handle this case in my code,
+      //but we want the old schedule to be the user's previous position eventually.
       let empty_schedule = Self::get_empty_schedule()?;
 
       //create an all schedules vector that contains all of our schedules.
@@ -1111,7 +1125,7 @@ impl Processor {
 
       //update the data for the current point oject in the window end
       //also update the dslope situation for the unlock pointer. 
-      Ok((finished_at_window_start))
+      Ok(finished_at_window_start)
     }
 
 
@@ -1139,11 +1153,10 @@ impl Processor {
       //init the last point outside the loop so we have access to it outside the loop
       let first_epoch = Self::get_first_epoch_in_era(window_pointer)?;
       let diff = starting_epoch - first_epoch;
-      let offset = (CalendarAccountHeader::LEN as u16);
+      let offset = CalendarAccountHeader::LEN as u16;
       let mut first_byte_index_cal = (offset + (diff * Point::LEN as u16)) as usize;
       let mut second_byte_index_cal = (offset + ((diff + 1) * Point::LEN as u16)) as usize;
       let mut cal_data = window_cal.data.borrow_mut();
-      let mut dslope: i128 = 0;
 
       //we add 1 to starting index because we want the dslope value to come from the epoch
       //we're filing to, not the epoch we're starting from
@@ -1157,7 +1170,7 @@ impl Processor {
         epoch: 0,
       };
 
-      msg!("starting epoch {}", starting_epoch);
+      //msg!("starting epoch {}", starting_epoch);
       msg!("ending epoch {}", ending_epoch);
       msg!("current epoch {}", current_epoch);
 
@@ -1168,7 +1181,7 @@ impl Processor {
         new_point = Point::unpack(&cal_data[first_byte_index_cal..second_byte_index_cal])?;
         //msg!("old point we're starting from {:?}", last_filed_point);
         let epoch_counter_ts = Self::get_ts_from_epoch(epoch_counter)?; 
-        dslope = Self::get_dslope(
+        let dslope = Self::get_dslope(
           window_pointer,
           window_dslope,
           epoch_counter_ts,
@@ -1190,7 +1203,7 @@ impl Processor {
         new_point.slope = new_point_slope;
         new_point.bias = new_point_bias;
         new_point.epoch = epoch_counter;
-        msg!("dslope applied here {}", dslope);
+        //msg!("dslope applied here {}", dslope);
         //msg!("new point in loop {:?}", new_point);
         new_point.pack_into_slice(&mut cal_data[first_byte_index_cal..second_byte_index_cal]);
 
@@ -1214,7 +1227,6 @@ impl Processor {
       };
       new_cal_header.pack_into_slice(&mut cal_data[0..CalendarAccountHeader::LEN]);
       msg!("new point out of loop {:?}", new_point);
-      msg!("epoch counter {}",epoch_counter);
       Ok(new_point)
     }
 
@@ -1329,7 +1341,7 @@ impl Processor {
     }
 
     pub fn process_protocol_voting_power_test(
-      vesting_program: &Pubkey,
+      _vesting_program: &Pubkey,
       accounts: &[AccountInfo],
     ) -> ProgramResult {
 
@@ -1485,7 +1497,7 @@ impl Processor {
       let rent = Rent::from_account_info(rent_sysvar_account)?;
       //needs to store an array of i128s: one for each week in the epoch
       //maybe that would get expensive? how much to store 832 bytes?
-      let account_size = (I128_SIZE * EPOCHS_IN_ERA as usize);
+      let account_size = I128_SIZE * EPOCHS_IN_ERA as usize;
       let rent_to_pay = rent.minimum_balance(account_size as usize);
       msg!("the dlsope account will cost {} lamports to initialize", rent_to_pay);
 
