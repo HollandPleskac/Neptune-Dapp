@@ -17,9 +17,9 @@ const RightDetails = () => {
   const tabs = ['Lend', 'Borrow', 'Withdraw', 'Repay'];
   const [tab, setTab] = useState(tabs[1]);
   return (
-    <div className="w-dashboardRight bg-dark-secondary rounded-2xl p-8">
-      <div className="flex justify-between">
-        <div className="flex justify-between rightDetails-top-buttons">
+    <div className='w-dashboardRight bg-dark-secondary rounded-2xl p-8'>
+      <div className='flex justify-between items-center'>
+        <div className='flex justify-between rightDetails-top-buttons'>
           {tabs.map((t, i) => (
             <button
               key={i}
@@ -33,7 +33,7 @@ const RightDetails = () => {
             </button>
           ))}
         </div>
-        <div className="rightDetails-top-gear">
+        <div className='rightDetails-top-gear flex'>
           <button>
             <SettingsIcon />
           </button>
@@ -41,13 +41,13 @@ const RightDetails = () => {
       </div>
       <hr className={styles['neptune-right-details__hr']} />
       <WalletDetails />
-      <InputPicker placeholder="250" />
+      <InputPicker placeholder='250' />
       <PercentButtons />
       <RangeBar indicatorPercent={30} />
       <BottomDetails />
       <Button
-        text="Borrow SOL"
-        color="bg-blue-light"
+        text='Borrow SOL'
+        color='bg-blue-light'
         className={'neptune-button__borrow-sol'}
       />
     </div>
