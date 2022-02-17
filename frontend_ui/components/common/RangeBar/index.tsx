@@ -22,7 +22,7 @@ const RangeBar = ({ indicatorPercent }: Props) => {
           Loan to Value
         </span>
         <span className='ml-3 inline-block'>
-          <InfoIcon text-white />
+          <InfoIcon className='text-white' />
         </span>
       </div>
       <div
@@ -31,7 +31,7 @@ const RangeBar = ({ indicatorPercent }: Props) => {
       >
         <span
           className={cx(
-            'absolute left-0 right-0 w-fit text-10px mx-auto -top-6',
+            'absolute left-0 right-0 w-fit text-10px mx-auto -top-6 leading-10px',
             styles['neptune-range-bar__has-pointer'],
           )}
         >
@@ -39,7 +39,7 @@ const RangeBar = ({ indicatorPercent }: Props) => {
         </span>
         <span
           className={cx(
-            'absolute w-fit text-10px -top-6',
+            'absolute w-fit text-10px -top-6 leading-10px',
             styles['neptune-range-bar__has-pointer'],
             styles['neptune-range-bar__liquidation'],
           )}
