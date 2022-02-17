@@ -3,11 +3,11 @@ import { useState } from 'react';
 
 import Button from 'components/common/Button';
 import RangeBar from 'components/common/RangeBar';
-import InputPicker from 'components/common/InputPicker';
 
 import WalletDetails from './WalletDetails';
 import BottomDetails from './BottomDetails';
 import PercentButtons from './PercentButtons';
+import InputWithPicker from './InputWithPicker';
 
 import SettingsIcon from 'assets/SettingsIcon';
 import styles from './rightDetails.module.scss';
@@ -41,7 +41,7 @@ const RightDetails = () => {
       </div>
       <hr className={styles['neptune-right-details__hr']} />
       <WalletDetails />
-      <InputPicker placeholder='250' />
+      <InputWithPicker placeholder='250' />
       <PercentButtons />
       <RangeBar indicatorPercent={80} />
       <BottomDetails />
