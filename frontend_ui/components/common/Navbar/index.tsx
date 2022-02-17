@@ -19,7 +19,7 @@ const Navbar = () => {
     },
   ];
   return (
-    <nav className="flex justify-between text-white items-center mt-6 mb-14">
+    <nav className="flex justify-between text-white items-center mt-6 mb-2">
       <WhiteLogo />
       <ul className="flex justify-between">
         {links.map((link, i) => (

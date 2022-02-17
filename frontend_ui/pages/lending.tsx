@@ -13,18 +13,18 @@ const Lending: NextPage = () => {
     <div className="bg-dark-primary h-auto">
       <div className="w-body mx-auto">
         <Navbar />
-        <h2 className="text-2xl mb-8">Markets</h2>
-        <main className="flex justify-between h-marketCard">
+        <h2 className="text-lg mb-4">Lend & Borrow</h2>
+        <div className="flex justify-between">
           <Card1 />
           <Card2 />
           <Card3 />
           <Card4 />
-        </main>
-        <h2 className="text-2xl mt-10 mb-8">Markets</h2>
+        </div>
+        <h2 className="text-lg mt-6 mb-4">Markets</h2>
         <div className="flex gap-4">
           <div className="flex-1">
-            <div className="flex items-center mb-8">
-              <h5 className=" mr-1">Lend</h5>
+            <div className="flex items-center mb-6">
+              <h5 className="text-sm mr-1">Lend</h5>
               <InfoIcon text-white />
             </div>
             <TokenLabels isLend={true} />
@@ -36,8 +36,8 @@ const Lending: NextPage = () => {
             />
           </div>
           <div className="flex-1">
-            <div className="flex items-center mb-8">
-              <h5 className=" mr-1">Borrow</h5>
+            <div className="flex items-center mb-6">
+              <h5 className="text-sm mr-1">Borrow</h5>
               <InfoIcon text-white />
             </div>
             <TokenLabels isLend={false} />
