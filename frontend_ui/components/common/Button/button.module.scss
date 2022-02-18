@@ -1,4 +1,4 @@
-.neptune-button{
+.neptune-button {
   &__borrow-sol {
     width: 100%;
     border-radius: 8px;
@@ -7,15 +7,19 @@
     margin-top: 24px;
   }
   &__bg-gray-light-small {
+    @apply text-xs;
+    @apply leading-3;
+    @apply bg-gray-light;
     width: 36px;
     height: 26px;
     border-radius: 4px;
-    @apply bg-gray-light;
   }
   &__bg-gray-light-small-active {
+    @apply text-xs;
+    @apply leading-3;
+    @apply bg-dark-primary;
     width: 36px;
     height: 26px;
     border-radius: 4px;
-    @apply bg-dark-primary;
   }
 }
