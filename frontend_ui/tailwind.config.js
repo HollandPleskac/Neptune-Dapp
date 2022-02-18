@@ -21,6 +21,7 @@ module.exports = {
           light: '#353639',
           faded: 'rgba(255, 255, 255, 0.65)',
           fadedMore: 'rgba(255, 255, 255, 0.2)',
+          fadedMost: 'rgba(255, 255, 255, 0.15)',
         },
         green: {
           normal: '#25B38F',
@@ -44,6 +45,11 @@ module.exports = {
         '13px': '0.8125rem',
         xxs: '0.6875rem',
         xxxs: '0.63rem',
+      },
+      lineHeight: {
+        '10px': '0.625rem',
+        '14px': '0.875rem',
+        '17px': '1.063rem',
       },
     },
   },

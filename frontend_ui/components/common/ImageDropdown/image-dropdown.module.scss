@@ -1,0 +1,105 @@
+.demo-button {
+  appearance: none;
+  width: 5.25rem;
+  margin: auto;
+  background: #eee;
+  outline: none;
+  border: 1px solid #ddd;
+  border-radius: 0.2rem;
+  font-size: 1.5rem;
+  color: #000;
+  font-weight: 300;
+  cursor: pointer;
+  position: relative;
+  line-height: 1;
+  transition: all 0.2s ease 0.05s;
+  height: 3.875rem;
+  @apply flex;
+  @apply items-center;
+  background-color: transparent;
+  @apply border-r-0;
+  @apply rounded-tl-lg;
+  @apply rounded-bl-lg;
+  @apply rounded-tr-none;
+  @apply rounded-br-none;
+  @apply border-gray-fadedMore;
+}
+
+.demo-button span {
+  flex-grow: 1;
+  text-align: center;
+}
+
+.demo-button svg {
+  margin-right: 1rem;
+  color: #999;
+}
+
+.demo-menu {
+  background: #fff;
+  margin: auto;
+  margin-top: 0.8rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 0.25rem;
+  box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1);
+  opacity: 0;
+  visibility: hidden;
+  transition: transform 0.2s ease, opacity 0.2s ease, visibility 0s linear 0.2s;
+  will-change: transform;
+  text-align: left;
+  position: absolute;
+  width: fit-content;
+  left: 0;
+  right: 0;
+  margin-left: auto;
+  margin-right: auto;
+  z-index: 2;
+
+  &:global(.visible) {
+    transform: translateY(-0.3rem);
+    transition: transform 0.2s ease, opacity 0.2s ease, visibility 0s linear 0s;
+    visibility: visible;
+    opacity: 1;
+  }
+
+  :global(span) {
+    color: black;
+    cursor: pointer;
+    @apply flex;
+    @apply mb-2;
+
+    &:last-of-type {
+      @apply mb-0;
+    }
+  }
+
+  :global(svg) {
+    @apply w-8;
+    @apply h-8;
+    @apply mr-1;
+  }
+
+  :global(a) {
+    display: block;
+    font-size: 1.2rem;
+    padding: 0.25rem;
+    color: #29779e;
+    text-decoration: none;
+    cursor: pointer;
+    outline: none;
+    border: 0.1rem solid transparent;
+    border-radius: 0.2rem;
+  }
+}
+
+.button-img {
+  @apply w-8;
+  @apply h-8;
+
+  :global(svg) {
+    @apply w-8;
+    @apply h-8;
+    @apply ml-4;
+  }
+}
