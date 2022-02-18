@@ -1,4 +1,5 @@
 import BasicCardText from './BasicCardText';
+import InfoIcon from '../../assets/InfoIcon';
 
 const Card3: React.FC = () => {
   return (
