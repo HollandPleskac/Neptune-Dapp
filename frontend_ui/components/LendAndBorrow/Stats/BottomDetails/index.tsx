@@ -1,16 +1,18 @@
 import cx from 'classnames';
 import { useState } from 'react';
+
+import InfoIcon from 'assets/InfoIcon';
 import Button from 'components/common/Button';
 import LineChart from 'components/common/LineChart';
 
 const lineChartDataDashboard = [
   {
     name: 'Deposit APY',
-    data: [100, 200, 150, 160, 180, 200, 210],
+    data: [0, 90, 50, 60, 80, 20, 100],
   },
   {
     name: 'Borrow APY',
-    data: [100, 50, 80, 60, 40, 30, 10],
+    data: [0, -50, -80, -60, -40, -30, -10],
   },
 ];
 
@@ -71,6 +73,10 @@ const lineChartOptionsDashboard = {
   grid: {
     strokeDashArray: 5,
     borderColor: '#56577A',
+  },
+  fill: {
+    type: 'solid',
+    colors: ['transparent'],
   },
   // fill: {
   //   type: "gradient",
@@ -139,7 +145,12 @@ const BottomDetails = () => {
   return (
     <>
       <div className='flex justify-between w-full'>
-        <span>Historical APY</span>
+        <div className='flex items-center'>
+          <span className='mr-1 font-bold text-base leading-4'>
+            Historical APY
+          </span>
+          <InfoIcon className='text-white' />
+        </div>
         <div className='flex bg-gray-light rounded p-2px'>
           {historyButtons.map((hb, i) => (
             <Button
@@ -158,12 +169,16 @@ const BottomDetails = () => {
         lineChartData={lineChartDataDashboard}
         lineChartOptions={lineChartOptionsDashboard}
       />
-      <div className='flex justify-between w-full'>
+      <div className='flex justify-between w-full mt-9 items-center'>
         <div className='flex'>
-          <span className='mr-4'>Deposit APY</span>
-          <span>Borrow APY</span>
+          <span className='mr-4 text-xs leading-3 font-medium text-gray-faded'>
+            Deposit APY
+          </span>
+          <span className='text-xs leading-3 font-medium text-gray-faded'>
+            Borrow APY
+          </span>
         </div>
-        <div>Rewards APR Details</div>
+        <div className='text-xs leading-3 font-medium'>Rewards APR Details</div>
       </div>
     </>
   );
