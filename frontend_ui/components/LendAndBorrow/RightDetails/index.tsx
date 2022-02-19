@@ -44,7 +44,7 @@ const RightDetails = () => {
       <InputWithPicker placeholder='250' />
       <PercentButtons />
       <RangeBar indicatorPercent={80} />
-      <BottomDetails />
+      <BottomDetails tab={tab} />
       <Button
         text='Borrow SOL'
         color='bg-blue-light'
