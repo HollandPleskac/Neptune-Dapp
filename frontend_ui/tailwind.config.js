@@ -26,6 +26,9 @@ module.exports = {
         green: {
           normal: '#25B38F',
         },
+        red: {
+          normal: '#ED6564'
+        }
       },
       width: {
         body: '77rem',

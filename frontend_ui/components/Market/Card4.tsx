@@ -6,11 +6,11 @@ const Card4: React.FC = () => {
       <div className='flex justify-between'>
         <div>
           <h5 className=' mb-2 mr-1 text-xs text-gray-faded'>Total Lent</h5>
-          <h4 className='text-2xl font-bold'>$2,500</h4>
+          <h4 className='text-green-normal text-2xl font-bold'>$2,500</h4>
         </div>
         <div className='flex flex-col items-end'>
           <h5 className='mb-2 mr-1 text-xs text-gray-faded'>Total Borrowed</h5>
-          <h4 className='text-2xl font-bold'>$2,500</h4>
+          <h4 className='text-red-normal text-2xl font-bold'>$1,500</h4>
         </div>
       </div>
       <div className='flex justify-between mb-3 mt-6'>

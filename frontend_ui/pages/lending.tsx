@@ -9,6 +9,48 @@ import Token from '../components/Market/Token';
 import InfoIcon from '../assets/InfoIcon';
 
 const Lending: NextPage = () => {
+  const lendTokens = [
+    {
+      name: 'SOL',
+      lendAPY: '5%',
+      rewardsAPR: '2% - 6%',
+      totalLent: '$3,456,069',
+    },
+    {
+      name: 'USDC',
+      lendAPY: '2%',
+      rewardsAPR: '1.2% - 5.3%',
+      totalLent: '$34,456,069',
+    },
+    {
+      name: 'NEP',
+      lendAPY: '1.4%',
+      rewardsAPR: '2.3% - 33.53%',
+      totalLent: '$656,069',
+    },
+  ];
+
+  const borrowTokens = [
+    {
+      name: 'SOL',
+      lendAPY: '-11.23%',
+      rewardsAPR: '2% - 5.53%',
+      totalLent: '$23,456,000',
+    },
+    {
+      name: 'USDC',
+      lendAPY: '-5.02%',
+      rewardsAPR: '1% - 3.21%',
+      totalLent: '$34,456,069',
+    },
+    {
+      name: 'NEP',
+      lendAPY: '-4.5%',
+      rewardsAPR: '2.3% - 33.53%',
+      totalLent: '$656,069',
+    },
+  ];
+
   return (
     <div className='bg-dark-primary h-auto'>
       <div className='w-body mx-auto'>
@@ -28,49 +70,35 @@ const Lending: NextPage = () => {
               <InfoIcon text-white />
             </div>
             <TokenLabels isLend={true} />
-            <Token
-              name='SOL'
-              lendAPY='5%'
-              rewardsAPR='2% - 5.53%'
-              totalLent='$23,456,000'
-            />
-            <Token
-              name='SOL'
-              lendAPY='5%'
-              rewardsAPR='2% - 5.53%'
-              totalLent='$23,456,000'
-            />
-            <Token
-              name='SOL'
-              lendAPY='5%'
-              rewardsAPR='2% - 5.53%'
-              totalLent='$23,456,000'
-            />
+            {lendTokens.map((info, i) => {
+              return (
+                <Token
+                  key={i}
+                  name={info.name}
+                  lendAPY={info.lendAPY}
+                  rewardsAPR={info.rewardsAPR}
+                  totalLent={info.totalLent}
+                />
+              );
+            })}
           </div>
           <div className='flex-1'>
             <div className='flex items-center mb-8'>
-              <h5 className='mr-1text-base font-bold'>Borrow</h5>
+              <h5 className='mr-1text-base font-bold mr-1'>Borrow</h5>
               <InfoIcon text-white />
             </div>
             <TokenLabels isLend={false} />
-            <Token
-              name='SOL'
-              lendAPY='5%'
-              rewardsAPR='2% - 5.53%'
-              totalLent='$23,456,000'
-            />
-            <Token
-              name='SOL'
-              lendAPY='5%'
-              rewardsAPR='2% - 5.53%'
-              totalLent='$23,456,000'
-            />
-            <Token
-              name='SOL'
-              lendAPY='5%'
-              rewardsAPR='2% - 5.53%'
-              totalLent='$23,456,000'
-            />
+            {borrowTokens.map((info, i) => {
+              return (
+                <Token
+                  key={i}
+                  name={info.name}
+                  lendAPY={info.lendAPY}
+                  rewardsAPR={info.rewardsAPR}
+                  totalLent={info.totalLent}
+                />
+              );
+            })}
           </div>
         </div>
       </div>
