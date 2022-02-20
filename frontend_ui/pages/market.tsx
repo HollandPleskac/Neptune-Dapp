@@ -15,18 +15,21 @@ const Lending: NextPage = () => {
       lendAPY: '5%',
       rewardsAPR: '2% - 6%',
       totalLent: '$3,456,069',
+      href: '/lend-borrow/sol/lend',
     },
     {
       name: 'USDC',
       lendAPY: '2%',
       rewardsAPR: '1.2% - 5.3%',
       totalLent: '$34,456,069',
+      href: '/lend-borrow/usdc/lend',
     },
     {
       name: 'NEP',
       lendAPY: '1.4%',
       rewardsAPR: '2.3% - 33.53%',
       totalLent: '$656,069',
+      href: '/lend-borrow/nep/lend',
     },
   ];
 
@@ -36,18 +39,21 @@ const Lending: NextPage = () => {
       lendAPY: '-11.23%',
       rewardsAPR: '2% - 5.53%',
       totalLent: '$23,456,000',
+      href: '/lend-borrow/sol/lend',
     },
     {
       name: 'USDC',
       lendAPY: '-5.02%',
       rewardsAPR: '1% - 3.21%',
       totalLent: '$34,456,069',
+      href: '/lend-borrow/usdc/lend',
     },
     {
       name: 'NEP',
       lendAPY: '-4.5%',
       rewardsAPR: '2.3% - 33.53%',
       totalLent: '$656,069',
+      href: '/lend-borrow/nep/lend',
     },
   ];
 
@@ -78,6 +84,7 @@ const Lending: NextPage = () => {
                   lendAPY={info.lendAPY}
                   rewardsAPR={info.rewardsAPR}
                   totalLent={info.totalLent}
+                  href={info.href}
                 />
               );
             })}
@@ -96,6 +103,7 @@ const Lending: NextPage = () => {
                   lendAPY={info.lendAPY}
                   rewardsAPR={info.rewardsAPR}
                   totalLent={info.totalLent}
+                  href={info.href}
                 />
               );
             })}
