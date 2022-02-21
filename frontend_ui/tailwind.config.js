@@ -46,8 +46,6 @@ module.exports = {
         '10px': '0.625rem',
         '14px': '0.875rem',
         '13px': '0.8125rem',
-        xxs: '0.6875rem',
-        xxxs: '0.63rem',
       },
       lineHeight: {
         '10px': '0.625rem',
