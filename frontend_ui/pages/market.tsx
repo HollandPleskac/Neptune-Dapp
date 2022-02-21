@@ -1,62 +1,16 @@
-import type { NextPage } from 'next';
+import type { NextPage, GetStaticProps } from 'next';
 import Navbar from '../components/common/Navbar';
 import Card1 from '../components/Market/Card1';
 import Card2 from '../components/Market/Card2';
 import Card3 from '../components/Market/Card3';
 import Card4 from '../components/Market/Card4';
-import TokenLabels from '../components/Market/TokenLabels';
-import Token from '../components/Market/Token';
-import InfoIcon from '../assets/InfoIcon';
+import Lend from '../components/Market/Lend';
+import Borrow from '../components/Market/Borrow';
 
-const Lending: NextPage = () => {
-  const lendTokens = [
-    {
-      name: 'SOL',
-      lendAPY: '5%',
-      rewardsAPR: '2% - 6%',
-      totalLent: '$3,456,069',
-      href: '/lend-borrow/sol/lend',
-    },
-    {
-      name: 'USDC',
-      lendAPY: '2%',
-      rewardsAPR: '1.2% - 5.3%',
-      totalLent: '$34,456,069',
-      href: '/lend-borrow/usdc/lend',
-    },
-    {
-      name: 'NEP',
-      lendAPY: '1.4%',
-      rewardsAPR: '2.3% - 33.53%',
-      totalLent: '$656,069',
-      href: '/lend-borrow/nep/lend',
-    },
-  ];
-
-  const borrowTokens = [
-    {
-      name: 'SOL',
-      lendAPY: '-11.23%',
-      rewardsAPR: '2% - 5.53%',
-      totalLent: '$23,456,000',
-      href: '/lend-borrow/sol/lend',
-    },
-    {
-      name: 'USDC',
-      lendAPY: '-5.02%',
-      rewardsAPR: '1% - 3.21%',
-      totalLent: '$34,456,069',
-      href: '/lend-borrow/usdc/lend',
-    },
-    {
-      name: 'NEP',
-      lendAPY: '-4.5%',
-      rewardsAPR: '2.3% - 33.53%',
-      totalLent: '$656,069',
-      href: '/lend-borrow/nep/lend',
-    },
-  ];
-
+const Lending: NextPage<Props> = ({
+  lendTokensInitial,
+  borrowTokensInitial,
+}: Props) => {
   return (
     <div className='bg-dark-primary h-auto'>
       <div className='w-body mx-auto'>
@@ -70,48 +24,73 @@ const Lending: NextPage = () => {
         </div>
         <h2 className='mt-10 mb-8 text-2xl font-bold'>Markets</h2>
         <div className='flex gap-4'>
-          <div className='flex-1'>
-            <div className='flex items-center mb-8'>
-              <h5 className='mr-1 text-base font-bold'>Lend</h5>
-              <InfoIcon text-white />
-            </div>
-            <TokenLabels isLend={true} />
-            {lendTokens.map((info, i) => {
-              return (
-                <Token
-                  key={i}
-                  name={info.name}
-                  lendAPY={info.lendAPY}
-                  rewardsAPR={info.rewardsAPR}
-                  totalLent={info.totalLent}
-                  href={info.href}
-                />
-              );
-            })}
-          </div>
-          <div className='flex-1'>
-            <div className='flex items-center mb-8'>
-              <h5 className='mr-1text-base font-bold mr-1'>Borrow</h5>
-              <InfoIcon text-white />
-            </div>
-            <TokenLabels isLend={false} />
-            {borrowTokens.map((info, i) => {
-              return (
-                <Token
-                  key={i}
-                  name={info.name}
-                  lendAPY={info.lendAPY}
-                  rewardsAPR={info.rewardsAPR}
-                  totalLent={info.totalLent}
-                  href={info.href}
-                />
-              );
-            })}
-          </div>
+          <Lend lendTokensInitial={lendTokensInitial} />
+          <Borrow borrowTokensInitial={borrowTokensInitial} />
         </div>
       </div>
     </div>
   );
+};
+
+type Props = {
+  lendTokensInitial: TokenType[];
+  borrowTokensInitial: TokenType[];
+};
+
+export const getStaticProps: GetStaticProps = () => {
+  const dummyLendTokens: TokenType[] = [
+    {
+      name: 'SOL',
+      APY: '5%',
+      rewardsAPR: '2% - 6%',
+      totalAmount: '$3,456,069',
+      href: '/lend-borrow/sol/lend',
+    },
+    {
+      name: 'USDC',
+      APY: '2%',
+      rewardsAPR: '1.2% - 5.3%',
+      totalAmount: '$34,456,069',
+      href: '/lend-borrow/usdc/lend',
+    },
+    {
+      name: 'NEP',
+      APY: '1.4%',
+      rewardsAPR: '2.3% - 33.53%',
+      totalAmount: '$656,069',
+      href: '/lend-borrow/nep/lend',
+    },
+  ];
+
+  const dummyBorrowTokens: TokenType[] = [
+    {
+      name: 'SOL',
+      APY: '-11.23%',
+      rewardsAPR: '2% - 5.53%',
+      totalAmount: '$23,456,000',
+      href: '/lend-borrow/sol/lend',
+    },
+    {
+      name: 'USDC',
+      APY: '-5.02%',
+      rewardsAPR: '1% - 3.21%',
+      totalAmount: '$34,456,069',
+      href: '/lend-borrow/usdc/lend',
+    },
+    {
+      name: 'NEP',
+      APY: '-4.5%',
+      rewardsAPR: '2.3% - 33.53%',
+      totalAmount: '$656,069',
+      href: '/lend-borrow/nep/lend',
+    },
+  ];
+  return {
+    props: {
+      lendTokensInitial: dummyLendTokens,
+      borrowTokensInitial: dummyBorrowTokens,
+    },
+  };
 };
 
 export default Lending;
