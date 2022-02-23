@@ -1,5 +1,5 @@
-import DescendingSortArrow from '../../assets/DescendingSortArrow';
-import AscendingSortarrow from '../../assets/AscendingSortarrow';
+import DescendingSortArrow from 'assets/DescendingSortArrow';
+import AscendingSortArrow from 'assets/AscendingSortArrow';
 
 const Label = ({ name, widthClasses, field, sortFn }: Props) => {
   return (
@@ -12,7 +12,7 @@ const Label = ({ name, widthClasses, field, sortFn }: Props) => {
       >
         <h4 className='mr-3 text-sm text-gray-faded'>{name}</h4>
         <div>
-          <AscendingSortarrow className='mb-[0.125rem]' />
+          <AscendingSortArrow className='mb-[0.125rem]' />
           <DescendingSortArrow />
         </div>
       </div>
