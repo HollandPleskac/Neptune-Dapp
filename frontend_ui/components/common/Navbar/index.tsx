@@ -1,4 +1,5 @@
 import WhiteLogo from './../../../assets/WhiteLogo';
+
 const Navbar = () => {
   const links = [
     {

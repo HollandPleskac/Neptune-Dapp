@@ -2,6 +2,7 @@ import { useState } from 'react';
 import InfoIcon from '../../assets/InfoIcon';
 import TokenLabels from './TokenLabels';
 import Token from './Token';
+import sortTokens from 'utils/sortTokens';
 
 type SortInformation = {
   lastSortedField: string | null;
@@ -10,43 +11,18 @@ type SortInformation = {
 
 const Lend = ({ lendTokensInitial }: Props) => {
   const [lendTokens, setLendTokens] = useState<TokenType[]>(lendTokensInitial);
-  const [sortInfo, setSortInfo] = useState<SortInformation>({
+  const [lendSortInfo, setLendSortInfo] = useState<SortInformation>({
     lastSortedField: null,
     order: null,
   });
 
   function sortLendHandler(field: string) {
-    // if sortInfo.lastSortedField not field then sort list and update list state
-    // if sortInfo.lastSortedField equal to field sort by opposite of current state then update list state
-
-    const sortedList: TokenType[] = [...lendTokens].sort(
-      (el1: TokenType, el2: TokenType) => {
-        if (sortInfo.lastSortedField !== field || sortInfo.order === 'desc') {
-          // sort ascending
-          setSortInfo({
-            lastSortedField: field,
-            order: 'asc',
-          });
-          if (el1[field as keyof TokenType] < el2[field as keyof TokenType])
-            return -1;
-          if (el1[field as keyof TokenType] > el2[field as keyof TokenType])
-            return 1;
-          return 0;
-        } else {
-          // sort descending
-          setSortInfo({
-            lastSortedField: field,
-            order: 'desc',
-          });
-          if (el1[field as keyof TokenType] > el2[field as keyof TokenType])
-            return -1;
-          if (el1[field as keyof TokenType] < el2[field as keyof TokenType])
-            return 1;
-          return 0;
-        }
-      },
+    const { sortedList, sortInfo } = sortTokens(
+      lendTokens,
+      field,
+      lendSortInfo,
     );
-
+    setLendSortInfo(sortInfo);
     setLendTokens(sortedList);
   }
 
