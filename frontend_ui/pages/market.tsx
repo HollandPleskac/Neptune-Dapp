@@ -1,4 +1,4 @@
-import type { NextPage, GetStaticProps } from 'next';
+import type { NextPage, GetServerSideProps } from 'next';
 import Navbar from '../components/common/Navbar';
 import Card1 from '../components/Market/Card1';
 import Card2 from '../components/Market/Card2';
@@ -37,7 +37,7 @@ type Props = {
   borrowTokensInitial: TokenType[];
 };
 
-export const getStaticProps: GetStaticProps = () => {
+export const getServerSideProps: GetServerSideProps = async () => {
   const dummyLendTokens: TokenType[] = [
     {
       name: 'SOL',
