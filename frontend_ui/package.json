@@ -6,7 +6,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint \"**/*.{js,jsx,ts,tsx}\"",
-    "style:all": "tsc && yarn lint && yarn style:prettier",
+    "style:all": "yarn lint && yarn style:prettier",
     "style:lint": "yarn lint && yarn make-pretty",
     "style:prettier": "prettier --check \"**/*.{js,jsx,ts,tsx}\"",
     "make-pretty": "prettier --write \"**/*.{js,jsx,ts,tsx}\"",
