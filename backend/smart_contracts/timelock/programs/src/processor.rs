@@ -18,7 +18,7 @@ use spl_token::{instruction::transfer, state::Account};
 use core::cell::{RefMut};
 
 use crate::{
-    error::VestingError,
+    error::{VestingError},
     instruction::{VestingInstruction},
     state::{
       pack_schedules_into_slice, 
@@ -43,7 +43,7 @@ pub const SECONDS_IN_EPOCH: u64 = 604800; //seconds in an epoch
 pub const EPOCHS_IN_ERA: u16 = 26; //6 months
 //epochs is number of weeks since our protocol's zero time. Not Solana epochs
 pub const ZERO_EPOCH_TS: u64 = 1_641_427_200; //# of seconds since the unix zero time and our protocol's zero time (1/6/22 0000 GMT). 
-//pub const ZERO_EPOCH_TS: u64 = 	1645127520; //1452
+//pub const ZERO_EPOCH_TS: u64 = 	1645572300; 
 pub const I128_SIZE: usize = 16;
 pub const LAMPORT_NUMBER: u64 = 1000000000;
 
@@ -116,36 +116,20 @@ impl Processor {
         &account_to_create.key,
         rent_lamports,
         size,
-        &vesting_program
+        &vesting_program,
       );
 
       //create account
       invoke_signed(
         &create_account_instructions,
         &[
-          system_program.clone(),
+          //system_program.clone(),
           fee_payer.clone(),
           account_to_create.clone(),
+          //vesting_program.clone(), Does this need to be here?
         ],
         &[&[&account_to_create_seed]]
       )?;
-      Ok(())
-    }
-
-    pub fn validate_account(
-      account: &AccountInfo,
-      account_seed: [u8; 32],
-      vesting_program: &Pubkey,
-      error_message: &str
-    ) -> ProgramResult {
-      // Find the non reversible public key for the vesting account via the seed
-      let derived_account_key = Pubkey::create_program_address(&[&account_seed], vesting_program)?;
-      
-      //verify the derived account key matches what we sent to the program
-      if derived_account_key != *account.key {
-        msg!("{}", error_message);
-        return Err(ProgramError::InvalidArgument)
-      }
       Ok(())
     }
 
@@ -309,10 +293,16 @@ impl Processor {
 
     //given a timestamp, returns the first epoch in that timestamp's era.
     pub fn get_first_epoch_in_new_era(
-      current_ts: u64
+      clock_sysvar_account: &AccountInfo
     ) -> Result<u16, ProgramError> {
-      //TODO: throw an error if current_ts is before zero epoch ts, since that will
-      //cause an infinite loop
+
+      let clock = Clock::from_account_info(&clock_sysvar_account)?;
+      let current_ts = clock.unix_timestamp as u64; // clock.unix_timestamp is an i64
+
+      //prevent an infinite loop
+      if current_ts < ZERO_EPOCH_TS {
+        return Err(VestingError::NegativeTime.into())
+      }
       let seconds_in_era = SECONDS_IN_EPOCH * EPOCHS_IN_ERA as u64;
       let mut left_ts = ZERO_EPOCH_TS;
       let mut right_ts = ZERO_EPOCH_TS + seconds_in_era;
@@ -341,7 +331,14 @@ impl Processor {
       let second_byte_index = first_byte_index + Point::LEN;
       let cal_data = cal_account.data.borrow();
       let point = Point::unpack(&cal_data[first_byte_index..second_byte_index])?;
-      //TODO - make sure the epoch filed in the point object matches the one we're looking for
+      
+      //make sure the epoch filed in the point object matches the last epoch filed to the calendar
+      let point_last_filed_epoch = point.epoch;
+      let calendar_header = CalendarAccountHeader::unpack(&cal_data[0..CalendarAccountHeader::LEN])?;
+      if point_last_filed_epoch != calendar_header.last_filed_epoch {
+        return Err(VestingError::PointCalendarDesyncronization.into())
+      }
+
       Ok(point)
     }
 
@@ -377,7 +374,6 @@ impl Processor {
       dslope_account: &AccountInfo,
       ts: u64,
     ) -> Result<i128, ProgramError> {
-      //TODO => make sure the dslope account is found within the pointer account. 
       
       //ts will be zero when we're creating a new schedule because we pass in an empty 
       //schedule as the old schedule.
@@ -391,15 +387,7 @@ impl Processor {
         let dslope_index = Self::get_dslope_index_from_epoch(unlock_epoch, era_starting_epoch)?;
         let first_byte_index = (dslope_index * I128_SIZE) as usize;
         let second_byte_index = ((1 + dslope_index) * I128_SIZE) as usize;
-        
-        //msg!("unlock epoch {}", unlock_epoch);
-        //msg!("era start epoch {}", era_starting_epoch);
-        //msg!("get dslope first dslope index {}", first_byte_index);
-        //msg!("get dslope pointer {}", pointer_account.key);
-        //msg!("get dslope dslope account {}", dslope_account.key);
-        
         let dslope_data = dslope_account.data.borrow();
-        //msg!("dslope data to unpack {:?}", dslope_data);
         dslope = i128::
         from_le_bytes(dslope_data[first_byte_index..second_byte_index].try_into().unwrap());
       }
@@ -438,6 +426,263 @@ impl Processor {
       Ok(())
     }
 
+    
+    pub fn validate_account_seeds(
+      account: &AccountInfo,
+      account_seed: [u8; 32],
+      vesting_program: &Pubkey,
+      error_message: &str
+    ) -> ProgramResult {
+      // Find the non reversible public key for the vesting account via the seed
+      let derived_account_key = Pubkey::create_program_address(&[&account_seed], vesting_program)?;
+      
+      //verify the derived account key matches what we sent to the program
+      if derived_account_key != *account.key {
+        msg!("{}", error_message);
+        return Err(ProgramError::InvalidArgument)
+      }
+      Ok(())
+    }
+
+    //validate that the calendar account and dslope account are found within the given pointer
+    //account. Also make sure that all accounts are pdas owned by the vesting program
+    pub fn validate_infrastructure_accounts(
+      vesting_program: &Pubkey,
+      pointer_account: &AccountInfo,
+      calendar_account: &AccountInfo,
+      dslope_account: &AccountInfo,
+    ) -> ProgramResult {
+      Self::validate_dslope_account(vesting_program, pointer_account, dslope_account)?;
+      Self::validate_calendar_account(vesting_program, pointer_account, calendar_account)?;
+      Ok(())
+    }
+
+    pub fn validate_dslope_account(
+      vesting_program: &Pubkey,
+      pointer_account: &AccountInfo,
+      dslope_account: &AccountInfo,
+    ) -> ProgramResult {
+      let pointer_data = pointer_account.data.borrow();
+      let pointer_header = PointerAccountHeader::unpack(&pointer_data[0..PointerAccountHeader::LEN])?;
+      if pointer_header.dslope_account != *dslope_account.key {
+        return Err(VestingError::PointerDslopeMismatch.into())
+      }
+      if dslope_account.owner != vesting_program {
+        msg!("dslope account {:?} is not owned by the vesting program", dslope_account.key);
+        return Err(ProgramError::InvalidArgument);
+      }
+      if pointer_account.owner != vesting_program {
+        msg!("pointer account {:?} is not owned by the vesting program", pointer_account.key);
+        return Err(ProgramError::InvalidArgument);
+      }
+      Ok(())
+    }
+
+    //make sure the calendar account is in the pointer account, and that the calendar
+    //and pointer accounts are owned by the vesting program
+    pub fn validate_calendar_account(
+      vesting_program:& Pubkey,
+      pointer_account: &AccountInfo,
+      calendar_account: &AccountInfo,
+    ) -> ProgramResult {
+      let pointer_data = pointer_account.data.borrow();
+      let pointer_header = PointerAccountHeader::unpack(&pointer_data[0..PointerAccountHeader::LEN])?;
+      if pointer_header.calendar_account != *calendar_account.key {
+        return Err(VestingError::PointerCalendarMismatch.into())
+      }
+      if calendar_account.owner != vesting_program {
+        msg!("calendar account {:?} is not owned by the vesting program", calendar_account.key);
+        return Err(ProgramError::InvalidArgument);
+      }
+      if pointer_account.owner != vesting_program {
+        msg!("pointer account {:?} is not owned by the vesting program", pointer_account.key);
+        return Err(ProgramError::InvalidArgument);
+      }
+      Ok(())
+    }
+
+    pub fn validate_creation_programs(
+      system_program: &AccountInfo,
+      rent_sysvar_account: &AccountInfo,
+    ) -> ProgramResult {
+      if solana_program::system_program::id() != *system_program.key {
+        msg!("the provided system program is invalid");
+        return Err(ProgramError::InvalidArgument)
+      }
+      if solana_program::sysvar::rent::id() != *rent_sysvar_account.key {
+        msg!("the provided rent sysvar program is invalid");
+        return Err(ProgramError::InvalidArgument)
+      }
+      Ok(())
+    }
+
+    pub fn validate_token_account(
+      spl_token_account: &AccountInfo,
+    ) -> ProgramResult {
+      if spl_token_account.key != &spl_token::id() {
+        msg!("The provided spl token program account is invalid");
+        return Err(ProgramError::InvalidArgument)
+      }
+      Ok(())
+    }
+
+    pub fn validate_clock_account(
+      clock_sysvar_account: &AccountInfo,
+    ) -> ProgramResult {
+      if *clock_sysvar_account.key != solana_program::sysvar::clock::id() {
+        msg!("The provided clock sysvar account is invalid");
+        return Err(ProgramError::InvalidArgument)
+      }
+      Ok(())
+    }
+
+    pub fn validate_vesting_token_accounts(
+      owner_account: &AccountInfo,
+      vesting_account: &AccountInfo,
+      vesting_account_header: &VestingScheduleHeader,
+      owner_token_account: &AccountInfo,
+      vesting_token_account: &AccountInfo,
+    ) -> ProgramResult {
+      
+      if vesting_account_header.destination_address != *owner_token_account.key {
+        msg!("Account to receive tokens saved in the vesting account does not matched the provided token account");
+        return Err(ProgramError::InvalidArgument);
+      }
+
+      let owner_token_account_data = Account::unpack(&owner_token_account.data.borrow())?;
+      if vesting_account_header.destination_address_owner != owner_token_account_data.owner {
+        msg!("The token account provided does not have the same owner as the vesting account!");
+        return Err(ProgramError::InvalidArgument);
+      }
+
+      if owner_token_account_data.owner != *owner_account.key {
+        msg!("the owner account provided does not own the token account provided");
+        return Err(ProgramError::InvalidArgument);
+      }
+
+      let vesting_token_account_data = Account::unpack(&vesting_token_account.data.borrow())?;
+      if vesting_token_account_data.owner != *vesting_account.key {
+          msg!("The vesting token account should be owned by the vesting account.");
+          return Err(ProgramError::InvalidArgument);
+      }
+      Ok(())
+    }
+
+    pub fn validate_signer(
+      signer_account: &AccountInfo,
+    ) -> ProgramResult {
+      if !signer_account.is_signer {
+        msg!("Invalid signer account.");
+        return Err(ProgramError::InvalidArgument);
+      }
+      Ok(())
+    }
+
+    //make sure that the pdas we pass in are actually owned by the vesting program.
+    pub fn validate_pda_ownership(
+      vesting_program: &Pubkey,
+      pda_vec: Vec<&AccountInfo>,
+    ) -> ProgramResult {
+      //msg!("{:?}", pda_vec);
+      for pda in pda_vec.iter() {
+        if pda.owner != vesting_program {
+          msg!("pda {:?} is not owned by {:?}, not by the vesting program", pda.key, pda.owner);
+          return Err(ProgramError::InvalidArgument);
+        }
+      }
+      Ok(())
+    }
+
+    pub fn validate_new_calendar_account(
+      vesting_program: &Pubkey,
+      old_cal_account: &AccountInfo,
+      new_cal_account: &AccountInfo,
+    ) -> ProgramResult {
+      let initial_seed_bytes = old_cal_account.key.to_bytes();
+      let sliced_seed_bytes = &initial_seed_bytes[0..31];
+      let (derived_account_key, bump) = Pubkey::find_program_address(
+        &[&sliced_seed_bytes],
+        vesting_program,
+      );
+      if derived_account_key != *new_cal_account.key {
+        msg!("new calendar account is not valid");
+        return Err(ProgramError::InvalidArgument);
+      }
+
+      Ok(())
+    }
+
+    pub fn derive_key(
+      word_base: &str,
+      pointer_bytes: &[u8],
+      vesting_program: &Pubkey,
+    ) -> Result<Pubkey, ProgramError> {
+      let word_bytes = word_base.as_bytes(); // => &[u8]
+      let mut initial_seed_bytes = [word_bytes, pointer_bytes].concat();
+      let sliced_seed_bytes = &initial_seed_bytes[0..31];
+      let (account_key, bump) = Pubkey::find_program_address(
+        &[&sliced_seed_bytes],
+        vesting_program,
+      );
+      Ok(account_key)
+    }
+
+    //make sure the calendar and dslope accounts fit for the pointer they're being saved to by
+    //re-deriving their keys. 
+    pub fn validate_pointer_fit(
+      vesting_program: &Pubkey,
+      pointer_account: &AccountInfo,
+      cal_account: &AccountInfo,
+      dslope_account: &AccountInfo,
+    ) -> ProgramResult {
+      let pointer_bytes = pointer_account.key.to_bytes(); //=> [u8; 32]
+      let derived_cal_key = Self::derive_key("calendar", &pointer_bytes[0..], vesting_program)?;
+      if *cal_account.key != derived_cal_key {
+        msg!("calendar account does not match the pointer account");
+        return Err(ProgramError::InvalidArgument)
+      }
+      
+      let derived_dslope_key = Self::derive_key("dslope", &pointer_bytes[0..], vesting_program)?;
+      if *dslope_account.key != derived_dslope_key {
+        msg!("calendar account does not match the pointer account");
+        return Err(ProgramError::InvalidArgument)
+      }
+
+      Ok(())
+    }
+
+    //make sure that the vesting account and data account are owned by the tx signer AND that
+    //the data account provided lives in the vesting account provided
+    pub fn validate_user_data_accounts(
+      vesting_account: &AccountInfo,
+      data_account: &AccountInfo,
+      owner_account: &AccountInfo,
+    ) -> ProgramResult {
+      //get our headers
+      let vesting_header = 
+      VestingScheduleHeader::unpack(&vesting_account.data.borrow()[..VestingScheduleHeader::LEN])?;
+      let data_header = 
+      DataHeader::unpack(&data_account.data.borrow()[..DataHeader::LEN])?;
+
+      //validate
+      if vesting_header.destination_address_owner != *owner_account.key {
+        msg!("tx signer does not own the provided vesting account");
+        return Err(ProgramError::InvalidArgument)
+      }
+      if vesting_header.data_account != *data_account.key {
+        msg!("vesting account's data account does not match the data account provided");
+        return Err(ProgramError::InvalidArgument)
+      }
+      if data_header.vesting_account != *vesting_account.key {
+        msg!("data accounts vesting account does not match the vesting account provided");
+        return Err(ProgramError::InvalidArgument)
+      }
+      //make sure the owner is a signer (aka, that the owner is a real person)
+      Self::validate_signer(owner_account)?;
+
+      Ok(())
+    }
+
     pub fn process_create_vesting_account(
         vesting_program: &Pubkey,
         accounts: &[AccountInfo],
@@ -453,17 +698,19 @@ impl Processor {
         let vesting_account = next_account_info(accounts_iter)?;
         let data_account = next_account_info(accounts_iter)?;
 
-        let rent = Rent::from_account_info(rent_sysvar_account)?;
-
         //validate vesting account
-        Self::validate_account(vesting_account, vesting_account_seed, vesting_program, "Provided vesting accont is invalid")?;
+        Self::validate_account_seeds(vesting_account, vesting_account_seed, vesting_program, "Provided vesting account is invalid")?;
 
         //validate data account
-        Self::validate_account(data_account, data_account_seed, vesting_program, "Provided data account is invalid")?;
+        Self::validate_account_seeds(data_account, data_account_seed, vesting_program, "Provided data account is invalid")?;
+
+        //validate solana programs
+        Self::validate_creation_programs(system_program, rent_sysvar_account)?;
 
         //get required sizes for the vesting account and data account
         let state_size = VestingScheduleHeader::LEN;
         let data_state_size = DataHeader::LEN + (num_of_schedules as usize) * VestingSchedule::LEN;
+        let rent = Rent::from_account_info(rent_sysvar_account)?;
 
         //create the vesting account
         Self::create_new_account(
@@ -515,7 +762,7 @@ impl Processor {
       let window_end_cal = next_account_info(accounts_iter)?;
       let window_end_dslope = next_account_info(accounts_iter)?;
       let new_unlock_pointer = next_account_info(accounts_iter)?;
-      let new_unlock_dlsope = next_account_info(accounts_iter)?;
+      let new_unlock_dslope = next_account_info(accounts_iter)?;
       let old_unlock_pointer = next_account_info(accounts_iter)?;
       let old_unlock_dslope = next_account_info(accounts_iter)?;
       let clock_sysvar_account = next_account_info(accounts_iter)?;
@@ -523,15 +770,45 @@ impl Processor {
       msg!("populating a net new vesting account!");
       msg!("years to lock is {}", years_to_lock);
 
-      if !owner_account.is_signer {
-          msg!("Owner of token account should be a signer.");
-          return Err(ProgramError::InvalidArgument);
-      }
+      //validate accounts
+      Self::validate_infrastructure_accounts(
+        vesting_program,
+        window_start_pointer,
+        window_start_cal,
+        window_start_dslope,
+      )?;
+      Self::validate_infrastructure_accounts(
+        vesting_program,
+        window_end_pointer,
+        window_end_cal,
+        window_end_dslope,
+      )?;
+      Self::validate_dslope_account(
+        vesting_program,
+        new_unlock_pointer,
+        new_unlock_dslope
+      )?;
+      Self::validate_dslope_account(
+        vesting_program,
+        old_unlock_pointer,
+        old_unlock_dslope
+      )?;
+      Self::validate_clock_account(clock_sysvar_account)?;
+      Self::validate_token_account(spl_token_account)?;
+      
+      //validate that the program owns our pdas
+      let mut pda_vec = Vec::new();
+      pda_vec.push(vesting_account);
+      pda_vec.push(data_account);
+      Self::validate_pda_ownership(vesting_program, pda_vec)?;
 
-      if *vesting_account.owner != *vesting_program {
-          msg!("Program should own vesting account");
-          return Err(ProgramError::InvalidArgument);
-      }
+      //validate the user's vesting and data accounts
+      Self::validate_user_data_accounts(
+        vesting_account,
+        data_account,
+        owner_account,
+      )?;
+      
 
       // Verifying that no SVC was already created with this seed
       let is_initialized =
@@ -613,7 +890,7 @@ impl Processor {
         window_end_cal,
         window_end_dslope,
         new_unlock_pointer,
-        new_unlock_dlsope,
+        new_unlock_dslope,
         old_unlock_pointer,
         old_unlock_dslope,
         clock_sysvar_account,
@@ -624,11 +901,12 @@ impl Processor {
 
     pub fn process_unlock(
         vesting_program: &Pubkey,
-        _accounts: &[AccountInfo],
+        accounts: &[AccountInfo],
         vesting_account_seed: [u8; 32],
     ) -> ProgramResult {
-        let accounts_iter = &mut _accounts.iter();
+        let accounts_iter = &mut accounts.iter();
 
+        let owner_account = next_account_info(accounts_iter)?;
         let spl_token_account = next_account_info(accounts_iter)?;
         let clock_sysvar_account = next_account_info(accounts_iter)?;
         let vesting_account = next_account_info(accounts_iter)?;
@@ -637,47 +915,38 @@ impl Processor {
         let data_account = next_account_info(accounts_iter)?;
 
         //validate vesting account
-        Self::validate_account(vesting_account, vesting_account_seed, vesting_program, "Provided vesting accont is invalid")?;
+        Self::validate_account_seeds(vesting_account, vesting_account_seed, vesting_program, "Provided vesting account is invalid")?;
 
-        if spl_token_account.key != &spl_token::id() {
-            msg!("The provided spl token program account is invalid");
-            return Err(ProgramError::InvalidArgument)
-        }
+        //validate token account and clock account
+        Self::validate_token_account(spl_token_account)?;
+        Self::validate_clock_account(clock_sysvar_account)?;
 
+        
+        //validate pda ownership
+        let mut pda_vec = Vec::new();
+        pda_vec.push(vesting_account);
+        pda_vec.push(data_account);
+        Self::validate_pda_ownership(vesting_program, pda_vec)?;
+
+        //validate the user's vesting and data accounts
+        Self::validate_user_data_accounts(
+          vesting_account,
+          data_account,
+          owner_account,
+        )?;
+
+        //validate the token accounts involved in this tx.
         let packed_state = &vesting_account.data;
-        let header_state =
+        let vesting_account_header =
             VestingScheduleHeader::unpack(&packed_state.borrow()[..VestingScheduleHeader::LEN])?;
 
-        if header_state.destination_address != *owner_token_account.key {
-            msg!("Account to receive tokens saved in the vesting account does not matched the provided token account");
-            return Err(ProgramError::InvalidArgument);
-        }
-
-        let owner_token_account_data = Account::unpack(&owner_token_account.data.borrow())?;
-        if header_state.destination_address_owner != owner_token_account_data.owner {
-          msg!("The token account provided does not have the same owner as the vesting account!");
-          return Err(ProgramError::InvalidArgument);
-        }
-
-        if header_state.data_account != *data_account.key {
-          msg!("data account passed in does not match data account stored in vesting account");
-          return Err(ProgramError::InvalidArgument);
-        }
-
-        let vesting_token_account_data = Account::unpack(&vesting_token_account.data.borrow())?;
-        if vesting_token_account_data.owner != *vesting_account.key {
-            msg!("The vesting token account should be owned by the vesting account.");
-            return Err(ProgramError::InvalidArgument);
-        }
-
-        //Validate that the pubkey stored in the DataHeader is the user's vesting account
-        let data_header = DataHeader::unpack(
-          &data_account.data.borrow()[..DataHeader::LEN],
+        Self::validate_vesting_token_accounts(
+          owner_account,
+          vesting_account,
+          &vesting_account_header,
+          owner_token_account,
+          vesting_token_account
         )?;
-        if data_header.vesting_account != *vesting_account.key {
-          msg!("the vesting account stored on the data account does not match the vesting account passed in");
-          return Err(ProgramError::InvalidArgument);
-        }
 
         //get the schedules from the data account
         let data_account_packed_data = &data_account.data;
@@ -739,19 +1008,27 @@ impl Processor {
       let new_data_account = next_account_info(accounts_iter)?;
 
       //validate the vesting account and the new data account
-      Self::validate_account(vesting_account, vesting_account_seed, vesting_program, "Provided vesting accont is invalid")?;
-      Self::validate_account(new_data_account, new_data_account_seed, vesting_program, "Provided key for new data account is invalid")?;
+      Self::validate_account_seeds(vesting_account, vesting_account_seed, vesting_program, "Provided vesting accont is invalid")?;
+      Self::validate_account_seeds(new_data_account, new_data_account_seed, vesting_program, "Provided key for new data account is invalid")?;
 
-      //Obtain and validate the public key of the old data account that's saved in the 
-      //vesting account's data
-      let vesting_account_packed_state = &vesting_account.data;
-      let vesting_account_header =
-          VestingScheduleHeader::unpack(&vesting_account_packed_state.borrow()[..VestingScheduleHeader::LEN])?;
-      let old_data_account_key = vesting_account_header.data_account;
-      if old_data_account_key != *old_data_account.key {
-        msg!("invalid key for old data account");
-        return Err(ProgramError::InvalidArgument);
-      };
+      //validate solana programs
+      Self::validate_creation_programs(system_program, rent_sysvar_account)?;
+
+      //validate signer
+      Self::validate_signer(owner_account)?;
+      
+      //validate pda ownership
+      let mut pda_vec = Vec::new();
+      pda_vec.push(vesting_account);
+      pda_vec.push(old_data_account);
+      Self::validate_pda_ownership(vesting_program, pda_vec)?;
+      
+      //validate the user's vesting and data accounts
+      Self::validate_user_data_accounts(
+        vesting_account,
+        old_data_account,
+        owner_account,
+      )?;
 
       //Obtain the old schedules from the old data account. 
       let old_data_packed_state = &old_data_account.data;
@@ -811,21 +1088,65 @@ impl Processor {
       let window_end_cal = next_account_info(accounts_iter)?;
       let window_end_dslope = next_account_info(accounts_iter)?;
       let new_unlock_pointer = next_account_info(accounts_iter)?;
-      let new_unlock_dlsope = next_account_info(accounts_iter)?;
+      let new_unlock_dslope = next_account_info(accounts_iter)?;
       let old_unlock_pointer = next_account_info(accounts_iter)?;
       let old_unlock_dslope = next_account_info(accounts_iter)?;
       let clock_sysvar_account = next_account_info(accounts_iter)?;
 
-      //Obtain and validate the public key of the old data account that's saved in the 
-      //vesting account's data
-      let vesting_account_packed_state = &vesting_account.data;
-      let vesting_account_header =
-          VestingScheduleHeader::unpack(&vesting_account_packed_state.borrow()[..VestingScheduleHeader::LEN])?;
-      let old_data_account_key = vesting_account_header.data_account;
-      if old_data_account_key != *old_data_account.key {
-        msg!("invalid key for old data account");
-        return Err(ProgramError::InvalidArgument);
-      };
+      //validate accounts
+      Self::validate_infrastructure_accounts(
+        vesting_program,
+        window_start_pointer,
+        window_start_cal,
+        window_start_dslope,
+      )?;
+      Self::validate_infrastructure_accounts(
+        vesting_program,
+        window_end_pointer,
+        window_end_cal,
+        window_end_dslope,
+      )?;
+      Self::validate_dslope_account(
+        vesting_program,
+        new_unlock_pointer,
+        new_unlock_dslope
+      )?;
+      Self::validate_dslope_account(
+        vesting_program,
+        old_unlock_pointer,
+        old_unlock_dslope
+      )?;
+      Self::validate_clock_account(
+        clock_sysvar_account,
+      )?;
+      Self::validate_token_account(
+        spl_token_account,
+      )?;
+
+      //validate pda ownership
+      let mut pda_vec = Vec::new();
+      pda_vec.push(vesting_account);
+      pda_vec.push(old_data_account);
+      pda_vec.push(new_data_account);
+      Self::validate_pda_ownership(vesting_program, pda_vec)?;
+      
+      //validate the user's vesting and data accounts
+      Self::validate_user_data_accounts(
+        vesting_account,
+        old_data_account,
+        owner_account,
+      )?;
+
+      let vesting_account_header = 
+        VestingScheduleHeader::unpack(&vesting_account.data.borrow()[..VestingScheduleHeader::LEN])?;
+      //validate the token accounts used in this tx
+      Self::validate_vesting_token_accounts(
+        owner_account,
+        vesting_account,
+        &vesting_account_header,
+        owner_token_account,
+        vesting_token_account
+      )?;
 
       //Obtain the old schedules from the old data account. 
       let old_data_packed_state = &old_data_account.data;
@@ -839,7 +1160,8 @@ impl Processor {
       let new_num_of_schedules = num_of_schedules_to_add + num_of_old_schedules;
 
       //validate the new data account's size. wrap it in a block so we end the 
-      //borrow here: we'll be mutably borrowing the data in the deposit fn.
+      //borrow here: we'll be mutably borrowing the data in the deposit fn and
+      //we want this borrow out of scope for that.
       {
         let new_data_account_data = new_data_account.data.borrow_mut();
         if new_data_account_data.len() != (new_num_of_schedules as usize) * VestingSchedule::LEN + DataHeader::LEN {
@@ -847,7 +1169,6 @@ impl Processor {
             return Err(ProgramError::InvalidAccountData)
         }
       }
-
 
       //validate the token amount in the new schedule we passed in.
       let tokens_in_new_schedule = Self::get_and_validate_tokens_in_schedule(&new_schedules)?;
@@ -918,7 +1239,7 @@ impl Processor {
         window_end_cal,
         window_end_dslope,
         new_unlock_pointer,
-        new_unlock_dlsope,
+        new_unlock_dslope,
         old_unlock_pointer,
         old_unlock_dslope,
         clock_sysvar_account
@@ -1003,8 +1324,8 @@ impl Processor {
 
       msg!("protocol update successful! Depositing tokens");
       //validate the vesting account and the new data account
-      Self::validate_account(vesting_account, vesting_account_seed, vesting_program, "Provided vesting accont is invalid")?;
-      Self::validate_account(data_account, data_account_seed, vesting_program, "Provided key for new data account is invalid")?;
+      Self::validate_account_seeds(vesting_account, vesting_account_seed, vesting_program, "Provided vesting accont is invalid")?;
+      Self::validate_account_seeds(data_account, data_account_seed, vesting_program, "Provided key for new data account is invalid")?;
 
       //pack the vesting account key into the data account's data.
       let mut data_account_data = data_account.data.borrow_mut();
@@ -1341,7 +1662,7 @@ impl Processor {
     }
 
     pub fn process_protocol_voting_power_test(
-      _vesting_program: &Pubkey,
+      vesting_program: &Pubkey,
       accounts: &[AccountInfo],
     ) -> ProgramResult {
 
@@ -1353,6 +1674,23 @@ impl Processor {
       let window_end_cal = next_account_info(accounts_iter)?;
       let window_end_dslope = next_account_info(accounts_iter)?;
       let clock_sysvar_account = next_account_info(accounts_iter)?;
+
+      //validate accounts
+      Self::validate_infrastructure_accounts(
+        vesting_program,
+        window_start_pointer,
+        window_start_cal,
+        window_start_dslope,
+      )?;
+      Self::validate_infrastructure_accounts(
+        vesting_program,
+        window_end_pointer,
+        window_end_cal,
+        window_end_dslope,
+      )?;
+
+      //validate clock
+      Self::validate_clock_account(clock_sysvar_account)?;
 
       //first, see if we need to bring the protocol up to date. the update protocol curve
       //function will do this if needed, or do nothing if the protocol is up to date. 
@@ -1394,21 +1732,46 @@ impl Processor {
     ) -> ProgramResult {
       //get accounts
       let accounts_iter = &mut accounts.iter();
-      let _owner_account = next_account_info(accounts_iter)?; //pubkey of vesting account owner
+      let owner_account = next_account_info(accounts_iter)?; //pubkey of vesting account owner
       let vesting_account = next_account_info(accounts_iter)?;
       let data_account = next_account_info(accounts_iter)?;
       let clock_sysvar_account = next_account_info(accounts_iter)?;
 
       //validate the vesting account
-      Self::validate_account(vesting_account, vesting_account_seed, vesting_program, "Provided vesting accont is invalid")?;
+      Self::validate_account_seeds(vesting_account, vesting_account_seed, vesting_program, "Provided vesting accont is invalid")?;
 
+      //validate the clock
+      Self::validate_clock_account(clock_sysvar_account)?;
+
+      //validate signer
+      Self::validate_signer(owner_account)?;
+
+      
+      //validate pda ownership
+      let mut pda_vec = Vec::new();
+      pda_vec.push(vesting_account);
+      pda_vec.push(data_account);
+      Self::validate_pda_ownership(vesting_program, pda_vec)?;
+
+      Self::validate_user_data_accounts(
+        vesting_account,
+        data_account,
+        owner_account,
+      )?;
+      
       //get the data account pubKey
       let packed_state = &vesting_account.data;
-      let header_state =
+      let vesting_account_header =
           VestingScheduleHeader::unpack(&packed_state.borrow()[..VestingScheduleHeader::LEN])?;
 
-      if header_state.data_account != *data_account.key {
+      if vesting_account_header.data_account != *data_account.key {
         msg!("data account passed in does not match data account stored in vesting account");
+        return Err(ProgramError::InvalidArgument);
+      }
+
+      //make sure the owner account "owns" the vesting account
+      if vesting_account_header.destination_address_owner != *owner_account.key {
+        msg!("owner account does not own the provided vesting account");
         return Err(ProgramError::InvalidArgument);
       }
 
@@ -1439,6 +1802,15 @@ impl Processor {
       let system_program = next_account_info(accounts_iter)?;
       let rent_sysvar_account = next_account_info(accounts_iter)?;
 
+      //validate account seeds
+      Self::validate_account_seeds(calendar_account, calendar_seed, vesting_program, "Provided calendar account is invalid")?;
+
+      //validate solana programs
+      Self::validate_creation_programs(system_program, rent_sysvar_account)?;
+
+      //validate signer
+      Self::validate_signer(fee_payer_account)?;
+
       //calculate rent
       let rent = Rent::from_account_info(rent_sysvar_account)?;
       let rent_to_pay = rent.minimum_balance(account_size as usize);
@@ -1458,90 +1830,79 @@ impl Processor {
       Ok(())
     }
 
-    pub fn process_populate_new_calendar_account(
-      vesting_program: &Pubkey,
-      accounts: &[AccountInfo],
-      mut first_epoch_in_era: u16
-    ) -> ProgramResult {
-      let accounts_iter = &mut accounts.iter();
-      //let fee_payer_account = next_account_info(accounts_iter)?;
-      let calendar_account = next_account_info(accounts_iter)?;
-      let clock_account = next_account_info(accounts_iter)?;
-      //TODO => validate the first_epoch_in_era passed in by obtaining the first epoch
-      //in the current timestamp's era.
-      
-      let mut cal_data = calendar_account.data.borrow_mut();
-      let header = CalendarAccountHeader{
-        last_filed_epoch: first_epoch_in_era,
-        is_initialized: true
-      };
-      header.pack_into_slice(&mut cal_data[0..CalendarAccountHeader::LEN]);
-
-      Ok(())
-    }
-
-    pub fn process_create_dslope_account(
-      vesting_program: &Pubkey,
-      accounts: &[AccountInfo],
-      dslope_seed: [u8; 32],
-    ) -> ProgramResult {
-
-      //get accounts
-      let accounts_iter = &mut accounts.iter();
-      let fee_payer_account = next_account_info(accounts_iter)?;
-      let dslope_account = next_account_info(accounts_iter)?;
-      let system_program = next_account_info(accounts_iter)?;
-      let rent_sysvar_account = next_account_info(accounts_iter)?;
-
-      //calculate rent
-      let rent = Rent::from_account_info(rent_sysvar_account)?;
-      //needs to store an array of i128s: one for each week in the epoch
-      //maybe that would get expensive? how much to store 832 bytes?
-      let account_size = I128_SIZE * EPOCHS_IN_ERA as usize;
-      let rent_to_pay = rent.minimum_balance(account_size as usize);
-      msg!("the dlsope account will cost {} lamports to initialize", rent_to_pay);
-
-      //create the new account
-      Self::create_new_account(
-        fee_payer_account,
-        dslope_account,
-        dslope_seed,
-        rent_to_pay,
-        account_size as u64,
-        vesting_program,
-        system_program
-      )?;
-
-      Ok(())
-    }
-    
-
-    pub fn process_create_pointer_account(
+    pub fn process_create_window_accounts(
       vesting_program: &Pubkey,
       accounts: &[AccountInfo],
       pointer_seed: [u8; 32],
+      calendar_seed: [u8; 32],
+      dslope_seed: [u8; 32],
+      calendar_size: u64,
     ) -> ProgramResult {
 
       //get accounts
       let accounts_iter = &mut accounts.iter();
       let fee_payer_account = next_account_info(accounts_iter)?;
       let pointer_account = next_account_info(accounts_iter)?;
+      let calendar_account = next_account_info(accounts_iter)?;
+      let dslope_account = next_account_info(accounts_iter)?;
       let system_program = next_account_info(accounts_iter)?;
       let rent_sysvar_account = next_account_info(accounts_iter)?;
 
-      //calculate rent
-      let account_size = PointerAccountHeader::LEN;
-      let rent = Rent::from_account_info(rent_sysvar_account)?;
-      let rent_to_pay = rent.minimum_balance(account_size);
-      msg!("the pointer account will cost {} lamports to initialize", rent_to_pay);
+      //validate seeds
+      Self::validate_account_seeds(dslope_account, dslope_seed, vesting_program, "Provided dslope account is invalid")?;
+      Self::validate_account_seeds(calendar_account, calendar_seed, vesting_program, "Provided calendar account is invalid")?;
+      Self::validate_account_seeds(pointer_account, pointer_seed, vesting_program, "Provided pointer account is invalid")?;
 
-      //create the new account
+      //validate solana programs
+      Self::validate_creation_programs(system_program, rent_sysvar_account)?;
+
+      //validate signer
+      Self::validate_signer(fee_payer_account)?;
+
+      //calculate pointer rent
+      let rent = Rent::from_account_info(rent_sysvar_account)?;
+      let pointer_account_size = PointerAccountHeader::LEN;
+      let pointer_rent_to_pay = rent.minimum_balance(pointer_account_size);
+      msg!("the pointer account will cost {} lamports to initialize", pointer_rent_to_pay);
+
+      //calculate calendar rent
+      let cal_rent_to_pay = rent.minimum_balance(calendar_size as usize);
+      msg!("the new calendar account will cost {} lamports to initialize", cal_rent_to_pay);
+
+      //calculate dslope size
+      let dslope_account_size = I128_SIZE * EPOCHS_IN_ERA as usize;
+      let dslope_rent_to_pay = rent.minimum_balance(dslope_account_size as usize);
+      msg!("the dlsope account will cost {} lamports to initialize", dslope_rent_to_pay);
+
+      //create the new pointer account
       Self::create_new_account(
         fee_payer_account,
         pointer_account,
         pointer_seed,
-        rent_to_pay,
-        account_size as u64,
+        pointer_rent_to_pay,
+        pointer_account_size as u64,
+        vesting_program,
+        system_program
+      )?;
+
+      //create the calendar account
+      Self::create_new_account(
+        fee_payer_account,
+        calendar_account,
+        calendar_seed,
+        cal_rent_to_pay,
+        calendar_size as u64,
+        vesting_program,
+        system_program
+      )?;
+
+      //create the new dslope account
+      Self::create_new_account(
+        fee_payer_account,
+        dslope_account,
+        dslope_seed,
+        dslope_rent_to_pay,
+        dslope_account_size as u64,
         vesting_program,
         system_program
       )?;
@@ -1549,7 +1910,8 @@ impl Processor {
       Ok(())
     }
 
-    pub fn process_populate_pointer_account(
+    pub fn process_populate_window_accounts(
+      vesting_program: &Pubkey,
       accounts: &[AccountInfo],
       first_epoch_in_era: u16,
     ) -> ProgramResult {
@@ -1561,6 +1923,24 @@ impl Processor {
       let calendar_account = next_account_info(accounts_iter)?;
       let dslope_account = next_account_info(accounts_iter)?;
 
+      
+      //validate pda ownership
+      let mut pda_vec = Vec::new();
+      pda_vec.push(pointer_account);
+      pda_vec.push(calendar_account);
+      pda_vec.push(dslope_account);
+      Self::validate_pda_ownership(vesting_program, pda_vec)?;
+      
+
+      //validate that the dslope and calendar accounts fit with the pointer
+      Self::validate_pointer_fit(
+        vesting_program,
+        pointer_account,
+        calendar_account,
+        dslope_account,
+      )?;
+
+      //create and save the pointer header
       let pointer_header = PointerAccountHeader{
         first_epoch: first_epoch_in_era,
         calendar_account: *calendar_account.key,
@@ -1568,10 +1948,15 @@ impl Processor {
         is_initialized: true,
       };
       let mut pointer_data = pointer_account.data.borrow_mut();
-
-      //don't need a slice since this is all the data that will be in the 
-      //pointer account
       pointer_header.pack_into_slice(&mut pointer_data);
+
+      //create and save the calendar header
+      let cal_header = CalendarAccountHeader{
+        last_filed_epoch: first_epoch_in_era,
+        is_initialized: true
+      };
+      let mut cal_data = calendar_account.data.borrow_mut();
+      cal_header.pack_into_slice(&mut cal_data[0..CalendarAccountHeader::LEN]);
 
       Ok(())
     }
@@ -1588,8 +1973,28 @@ impl Processor {
       let owner_account = next_account_info(accounts_iter)?;
       let pointer_account = next_account_info(accounts_iter)?;
       let new_cal_account = next_account_info(accounts_iter)?;
-      //don't use this now, but may for validation later
       let old_cal_account = next_account_info(accounts_iter)?;
+
+      //validate seed
+      Self::validate_account_seeds(new_cal_account, new_calendar_account_seed, vesting_program, "Provided calendar account is invalid")?;
+
+      //validate old calendar account
+      Self::validate_calendar_account(vesting_program, pointer_account, old_cal_account)?;
+
+      //validate the new calendar account
+      Self::validate_new_calendar_account(vesting_program, old_cal_account, new_cal_account)?;
+
+      
+      //validate pda ownership
+      let mut pda_vec = Vec::new();
+      pda_vec.push(pointer_account);
+      pda_vec.push(new_cal_account);
+      pda_vec.push(old_cal_account);
+      Self::validate_pda_ownership(vesting_program, pda_vec)?;
+      
+
+      //validate signer
+      Self::validate_signer(owner_account)?;
 
       //get some info from the old header
       let mut pointer_data = pointer_account.data.borrow_mut();
@@ -1719,41 +2124,28 @@ impl Processor {
                 account_size
               )
             }
-            VestingInstruction::PopulateCalendarAccount {
-              first_epoch_in_era
+            VestingInstruction::CreateWindowAccounts{
+              pointer_account_seed,
+              calendar_account_seed,
+              dslope_account_seed,
+              calendar_size,
             } => {
-              msg!("populating the new calendar account");
-              Self::process_populate_new_calendar_account(
+              msg!("creating new window accounts");
+              Self::process_create_window_accounts(
                 vesting_program,
                 accounts,
-                first_epoch_in_era
+                pointer_account_seed,
+                calendar_account_seed,
+                dslope_account_seed,
+                calendar_size,
               )
             }
-            VestingInstruction::CreateDslopeAccount{
-              dslope_account_seed
-            } => {
-              msg!("creating a new dslope account");
-              Self::process_create_dslope_account(
-                vesting_program,
-                accounts,
-                dslope_account_seed
-              )
-            }
-            VestingInstruction::CreatePointerAccount{
-              pointer_account_seed
-            } => {
-              msg!("creating a new pointer account");
-              Self::process_create_pointer_account(
-                vesting_program,
-                accounts,
-                pointer_account_seed
-              )
-            }
-            VestingInstruction::PopulatePointerAccount{
+            VestingInstruction::PopulateWindowAccounts{
               first_epoch_in_era
             } =>{
               msg!("populating a pointer account");
-              Self::process_populate_pointer_account(
+              Self::process_populate_window_accounts(
+                vesting_program,
                 accounts,
                 first_epoch_in_era
               )
@@ -1799,6 +2191,13 @@ impl PrintProgramError for VestingError {
         match self {
             VestingError::InvalidInstruction => msg!("Error: Invalid instruction!"),
             VestingError::AmountOverflow => msg!("Error: Amount Overflow!"),
-        }
+            VestingError::NegativeTime => msg!("timestamp is before Zero Period"),
+            VestingError::PointCalendarDesyncronization => msg!("the last filed period on returned point does not match calendar account's"),
+            VestingError::InvalidCalHeaderLength => msg!("calendar account's header has an invalid length"),
+            VestingError::InvalidPointLength => msg!("point data passed in has an invalid length"),
+            VestingError::PointerDslopeMismatch => msg!("the given pointer account does not contain the given dslope account"),
+            VestingError::PointerCalendarMismatch => msg!("the given pointer account does not contain the given calendar account"),
+            VestingError::PeriodMismatch => msg!("the given first period of the current era does not match the derived value on chain"),
+          }
     }
 }

@@ -27,7 +27,8 @@ import {
   ZERO_EPOCH,
   ZERO_EPOCH_TS,
   TOKEN_VESTING_PROGRAM_ID,
-  NEPTUNE_MINT
+  NEPTUNE_MINT,
+  CAL_HEADER_SIZE
 } from './const';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import next from 'next';
@@ -694,18 +695,23 @@ export async function getNewCalAccountSize(
   startingEpoch: number,
   currentEpoch: number,
   lastEpochInEra: number,
+  buildingUnlockInstructions: boolean,
 ): Promise<number> {
   const calInfo = await getAccountInfo(
     calAccount,
     connection,
   )
   //init calSize so we can use it later.
-  let calSize = 0;
-  if (calInfo == null) {
-    //we're creating a net new calendar account. cal size should be initiated at 3 to account
-    //for the header
-    calSize = 3;
-  } else {
+  let calSize = CAL_HEADER_SIZE;
+
+  //if we're building unlock instructions, calendar size should only account for the header,
+  //since we won't need it to store points yet. 
+  if (buildingUnlockInstructions) {
+    return calSize;
+  } 
+
+  //if the calendar has data, then we'll want to start the new size at the current data length.
+  if (calInfo !== null) {
     calSize = calInfo.data.length;
   }
   let checkEpoch = startingEpoch;

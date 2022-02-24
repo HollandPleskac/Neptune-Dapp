@@ -146,22 +146,16 @@ pub enum VestingInstruction {
       account_size: u64
     },
 
-    PopulateCalendarAccount{
-      first_epoch_in_era: u16
-    },
-
-    CreatePointerAccount{
+    CreateWindowAccounts{
       pointer_account_seed: [u8; 32],
-    },
-
-    PopulatePointerAccount{
-      first_epoch_in_era: u16
-    },
-
-    //TODO - will the seed actually be this long?
-    CreateDslopeAccount{
+      calendar_account_seed: [u8; 32],
       dslope_account_seed: [u8; 32],
-    },     
+      calendar_size: u64,
+    },
+
+    PopulateWindowAccounts{
+      first_epoch_in_era: u16
+    },    
     
     TransferCalendarData{
       new_calendar_account_seed: [u8; 32],
@@ -372,50 +366,45 @@ impl VestingInstruction {
                 account_size,
               }              
             }
-            //create a calendar account
+            //create window accounts
             6 => {
-              let first_epoch_in_era = rest
-                .get(0..2)
-                .and_then(|slice| slice.try_into().ok())
-                .map(u16::from_le_bytes)
-                .ok_or(InvalidInstruction)?;
-              Self::PopulateCalendarAccount{
-                first_epoch_in_era
-              }              
-            }
-            //create a dslope account
-            7 => {
-              let dslope_account_seed: [u8; 32] = rest
-                .get(..32)
-                .and_then(|slice| slice.try_into().ok())
-                .unwrap();
-              Self::CreateDslopeAccount{
-                dslope_account_seed,
-              }              
-            }
-            //create a pointer account
-            8 => {
               let pointer_account_seed: [u8; 32] = rest
                 .get(..32)
                 .and_then(|slice| slice.try_into().ok())
                 .unwrap();
-              Self::CreatePointerAccount{
+              let calendar_account_seed: [u8; 32] = rest
+                .get(32..64)
+                .and_then(|slice| slice.try_into().ok())
+                .unwrap();
+              let dslope_account_seed: [u8; 32] = rest
+                .get(64..96)
+                .and_then(|slice| slice.try_into().ok())
+                .unwrap();
+              let calendar_size = rest
+                .get(96..104)
+                .and_then(|slice| slice.try_into().ok())
+                .map(u64::from_le_bytes)
+                .ok_or(InvalidInstruction)?;
+              Self::CreateWindowAccounts{
                 pointer_account_seed,
+                calendar_account_seed,
+                dslope_account_seed,
+                calendar_size,
               }              
             }
-            //populate a pointer account
-            9 => {
+            //populate window accounts
+            7 => {
               let first_epoch_in_era = rest
                 .get(0..2)
                 .and_then(|slice| slice.try_into().ok())
                 .map(u16::from_le_bytes)
                 .ok_or(InvalidInstruction)?;
-              Self::PopulatePointerAccount{
+              Self::PopulateWindowAccounts{
                 first_epoch_in_era
               }
             }
-            //create a new calendar account
-            10 => {
+            //transfer data from an old calendar account to a new one
+            8 => {
               let new_calendar_account_seed: [u8; 32] = rest
                 .get(..32)
                 .and_then(|slice| slice.try_into().ok())
@@ -526,25 +515,19 @@ impl VestingInstruction {
               buf.extend_from_slice(calendar_account_seed);
               buf.extend_from_slice(&account_size.to_le_bytes());
             }
-            Self::PopulateCalendarAccount{
-              first_epoch_in_era
-            } => {
-              buf.push(6);
-              buf.extend_from_slice(&first_epoch_in_era.to_le_bytes());
-            }
-            Self::CreateDslopeAccount{
-              dslope_account_seed
-            } => {
-              buf.push(6);
-              buf.extend_from_slice(dslope_account_seed);
-            }
-            Self::CreatePointerAccount{
-              pointer_account_seed
+            Self::CreateWindowAccounts{
+              pointer_account_seed,
+              calendar_account_seed,
+              dslope_account_seed,
+              calendar_size,
             } => {
               buf.push(7);
               buf.extend_from_slice(pointer_account_seed);
+              buf.extend_from_slice(calendar_account_seed);
+              buf.extend_from_slice(dslope_account_seed);
+              buf.extend_from_slice(&calendar_size.to_le_bytes());
             }
-            Self::PopulatePointerAccount{
+            Self::PopulateWindowAccounts{
               first_epoch_in_era,
             } => {
               buf.push(8);

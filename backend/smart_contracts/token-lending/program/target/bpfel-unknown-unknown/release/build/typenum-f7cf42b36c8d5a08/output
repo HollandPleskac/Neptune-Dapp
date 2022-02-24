@@ -1,0 +1,2 @@
+cargo:rustc-env=TYPENUM_BUILD_CONSTS=/home/lambag/neptune/main/backend/smart_contracts/token-lending/program/target/bpfel-unknown-unknown/release/build/typenum-f7cf42b36c8d5a08/out/consts.rs
+cargo:rustc-env=TYPENUM_BUILD_OP=/home/lambag/neptune/main/backend/smart_contracts/token-lending/program/target/bpfel-unknown-unknown/release/build/typenum-f7cf42b36c8d5a08/out/op.rs

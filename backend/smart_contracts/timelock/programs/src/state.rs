@@ -2,10 +2,12 @@ use solana_program::{
     program_error::ProgramError,
     program_pack::{IsInitialized, Pack, Sealed},
     pubkey::Pubkey,
-    msg,
 };
-
 use std::convert::TryInto;
+
+use crate::{
+  error::{VestingError},
+};
 
 pub const ACCOUNT_SPACE: usize = 10_240; //10 mill bytes, or 10MB: largest SOL account size
 pub const INIT_BYTES: usize = 1;
@@ -275,7 +277,7 @@ impl Pack for CalendarAccountHeader{
 
   fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
     if src.len() < Self::LEN {
-      return Err(ProgramError::InvalidAccountData)
+      return Err(VestingError::InvalidCalHeaderLength.into())
     }
     let last_filed_epoch = u16::from_le_bytes(src[0..2].try_into().unwrap());
     let is_initialized = src[2] == 1;
@@ -318,8 +320,7 @@ impl Pack for Point {
   fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
     //msg!("unpacking a point object");
     if src.len() < Self::LEN {
-      msg!("point problem");
-      return Err(ProgramError::InvalidAccountData)
+      return Err(VestingError::InvalidPointLength.into())
     }
     //u64::from_le_bytes(src[0..8].try_into().unwrap());
     let slope = i128::from_le_bytes(src[0..16].try_into().unwrap());
