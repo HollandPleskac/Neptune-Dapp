@@ -2,12 +2,16 @@ import {
   PublicKey, 
   SYSVAR_RENT_PUBKEY,
   SYSVAR_CLOCK_PUBKEY, 
-  TransactionInstruction 
+  TransactionInstruction,
+  SystemProgram
 } from '@solana/web3.js';
 import { Schedule } from './state';
-import { connection, getAccountInfo, Numberu32, Numberu64 } from './utils';
+import { connection, getAccountInfo, Numberu32, Numberu64, Numberu16 } from './utils';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
-import { TOKEN_VESTING_PROGRAM_ID } from './const';
+import { 
+  TOKEN_VESTING_PROGRAM_ID,
+ } from './const';
+import { bytes } from '@project-serum/anchor/dist/cjs/utils';
 
 export enum Instruction {
   Init,
@@ -47,7 +51,7 @@ export function createVestingAccountInstruction(
     {
       pubkey: payerKey,
       isSigner: true,
-      isWritable: true,
+      isWritable: false,
     },
     {
       pubkey: vestingAccountKey,
@@ -78,6 +82,16 @@ export function populateVestingAccountIx(
   sourceTokenAccountKey: PublicKey,
   destinationTokenAccountKey: PublicKey,
   mintAddress: PublicKey,
+  windowStartPointer: PublicKey,
+  windowStartCal: PublicKey,
+  windowStartDslope: PublicKey,
+  windowEndPointer: PublicKey,
+  windowEndCal: PublicKey,
+  windowEndDslope: PublicKey,
+  newUnlockPointer: PublicKey,
+  newUnlockDslope: PublicKey,
+  oldUnlockPointer: PublicKey,
+  oldUnlockDslope: PublicKey,
   schedules: Array<Schedule>,
   seeds: Array<Buffer | Uint8Array>,
   dataAccountSeeds: Array<Buffer | Uint8Array>,
@@ -132,6 +146,61 @@ export function populateVestingAccountIx(
       isSigner: false,
       isWritable: false,
     },
+    {
+      pubkey: windowStartPointer,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: windowStartCal,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: windowStartDslope,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: windowEndPointer,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: windowEndCal,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: windowEndDslope,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: newUnlockPointer,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: newUnlockDslope,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: oldUnlockPointer,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: oldUnlockDslope,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: SYSVAR_CLOCK_PUBKEY,
+      isSigner: false,
+      isWritable: false,
+    },
   ];
 
   return new TransactionInstruction({
@@ -142,6 +211,7 @@ export function populateVestingAccountIx(
 }
 
 export function createUnlockInstruction(
+  userPk: PublicKey,
   vestingProgramId: PublicKey,
   tokenProgramId: PublicKey,
   clockSysvarId: PublicKey,
@@ -156,7 +226,15 @@ export function createUnlockInstruction(
     Buffer.concat(vestingAccountSeeds),
   ]);
 
+  //does the transaction not need a signer?
+  //no it doesn't, pretty sure it defaults to the fee payer if its not
+  //specified in the accounts?
   const keys = [
+    {
+      pubkey: userPk,
+      isSigner: true,
+      isWritable: false,
+    },
     {
       pubkey: tokenProgramId,
       isSigner: false,
@@ -271,6 +349,16 @@ export function populateNewDataAccountInstruction(
   oldDataAccountKey: PublicKey,
   newDataAccountKey: PublicKey,
   newDataAccountSeed: Array<Buffer | Uint8Array>,
+  windowStartPointer: PublicKey,
+  windowStartCal: PublicKey,
+  windowStartDslope: PublicKey,
+  windowEndPointer: PublicKey,
+  windowEndCal: PublicKey,
+  windowEndDslope: PublicKey,
+  newUnlockPointer: PublicKey,
+  newUnlockDslope: PublicKey,
+  oldUnlockPointer: PublicKey,
+  oldUnlockDslope: PublicKey,
   amountToLock: number,
   decimals: any
 
@@ -328,6 +416,61 @@ export function populateNewDataAccountInstruction(
       isSigner: false,
       isWritable: false,
     },
+    {
+      pubkey: windowStartPointer,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: windowStartCal,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: windowStartDslope,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: windowEndPointer,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: windowEndCal,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: windowEndDslope,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: newUnlockPointer,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: newUnlockDslope,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: oldUnlockPointer,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: oldUnlockDslope,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: SYSVAR_CLOCK_PUBKEY,
+      isSigner: false,
+      isWritable: false,
+    },
   ];
 
   return new TransactionInstruction({
@@ -337,7 +480,7 @@ export function populateNewDataAccountInstruction(
   });
 }
 
-export function onChainVotingPowerTestInstruction(
+export function userOnChainVotingPowerIx(
   userPk: PublicKey,
   vestingAccount: PublicKey,
   dataAccount: PublicKey,
@@ -350,7 +493,8 @@ export function onChainVotingPowerTestInstruction(
   let buffers = [
     Buffer.from(Int8Array.from([23]).buffer), //len 1
     Buffer.concat(vestingAccountSeed), //len 32
-    Buffer.from(Float32Array.from([clientVotingPower]).buffer) //len 4
+    //Buffer.from(Float32Array.from([clientVotingPower]).buffer) //len 4
+    new Numberu64(clientVotingPower).toBuffer() //len 8
   ];
   
   const data = Buffer.concat(buffers);
@@ -383,4 +527,313 @@ export function onChainVotingPowerTestInstruction(
     programId: TOKEN_VESTING_PROGRAM_ID,
     data,
   });
+}
+
+export function protocolOnChainVotingPowerIx(
+  userPk: PublicKey,
+  windowStartPointer: PublicKey,
+  windowStartCal: PublicKey,
+  windowStartDslope: PublicKey,
+  windowEndPointer: PublicKey,
+  windowEndCal: PublicKey,
+  windowEndDslope: PublicKey,
+): TransactionInstruction {
+
+  let buffers = [
+    Buffer.from(Int8Array.from([24]).buffer), //len 1
+    //Buffer.from(Float32Array.from([clientVotingPower]).buffer) //len 4
+  ];
+  
+  const data = Buffer.concat(buffers);
+
+  //calendars should be writable for this transaction: we may file new points to them. 
+  const keys = [
+    {
+      pubkey: windowStartPointer,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: windowStartCal,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: windowStartDslope,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: windowEndPointer,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: windowEndCal,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: windowEndDslope,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: SYSVAR_CLOCK_PUBKEY,
+      isSigner: false,
+      isWritable: false,
+    },
+  ];
+
+  return new TransactionInstruction({
+    keys,
+    programId: TOKEN_VESTING_PROGRAM_ID,
+    data,
+  });
+}
+
+export function newCalendarIx(
+  userPk: PublicKey,
+  newCalAccount: PublicKey,
+  newCalSeed: Array<Buffer| Uint8Array>,
+  newCalAccountSize: number,
+  pointerAccount: PublicKey,
+  oldCalAccount: PublicKey,
+): Array<TransactionInstruction> {
+  let ixs = [
+    createCalendarIx(
+      userPk,
+      newCalAccount,
+      newCalSeed,
+      newCalAccountSize,
+    ),
+    transferCalendarDataIx(
+      userPk,
+      pointerAccount,
+      newCalAccount,
+      newCalSeed,
+      oldCalAccount,
+    ),
+  ];
+  return ixs
+}
+
+export function createCalendarIx(
+  userPk: PublicKey,
+  cal_account: PublicKey,
+  seed: Array<Buffer | Uint8Array>,
+  accountSize: number,
+): TransactionInstruction {
+  let buffers = [
+    Buffer.from(Int8Array.from([5]).buffer), //len 1
+    Buffer.concat(seed), //len 32
+    new Numberu64(accountSize).toBuffer()
+  ];
+  const data = Buffer.concat(buffers);
+  const keys = [
+    {
+      pubkey: userPk,
+      isSigner: true,
+      isWritable: false,
+    },
+    {
+      pubkey: cal_account,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: SystemProgram.programId,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: SYSVAR_RENT_PUBKEY,
+      isSigner: false,
+      isWritable: false,
+    },
+  ]
+
+  return new TransactionInstruction({
+    keys,
+    programId: TOKEN_VESTING_PROGRAM_ID,
+    data,
+  });
+}
+
+export function newWindowIx(
+  userPk: PublicKey,
+  pointerAccount: PublicKey,
+  pointerSeed: Array<Buffer| Uint8Array>,
+  calAccount: PublicKey,
+  calSeed: Array<Buffer| Uint8Array>,
+  dslopeAccount: PublicKey,
+  dslopeSeed: Array<Buffer| Uint8Array>,
+  firstEpochInEra: number,
+  calSize: number,
+): Array<TransactionInstruction> {
+  let ixs = [
+    createWindowIx(
+      userPk,
+      pointerAccount,
+      pointerSeed,
+      calAccount,
+      calSeed,
+      dslopeAccount,
+      dslopeSeed,
+      calSize
+    ),
+    populateWindowIx(
+      userPk,
+      pointerAccount,
+      calAccount,
+      dslopeAccount,
+      firstEpochInEra,
+    )
+  ]
+  return ixs
+}
+
+
+export function createWindowIx(
+  userPk: PublicKey,
+  pointerAccount: PublicKey,
+  pointerSeed: Array<Buffer | Uint8Array>,
+  calendarAccount: PublicKey,
+  calendarSeed: Array<Buffer | Uint8Array>,
+  dslopeAccount: PublicKey,
+  dslopeSeed: Array<Buffer | Uint8Array>,
+  calendarSize: number,
+): TransactionInstruction {
+  let buffers = [
+    Buffer.from(Int8Array.from([6]).buffer), //len 1
+    Buffer.concat(pointerSeed), //len 32
+    Buffer.concat(calendarSeed), //len 32
+    Buffer.concat(dslopeSeed), //len 32
+    new Numberu64(calendarSize).toBuffer() //len 8
+  ];
+  const data = Buffer.concat(buffers);
+  const keys = [
+    {
+      pubkey: userPk,
+      isSigner: true,
+      isWritable: false,
+    },
+    {
+      pubkey: pointerAccount,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: calendarAccount,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: dslopeAccount,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: SystemProgram.programId,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: SYSVAR_RENT_PUBKEY,
+      isSigner: false,
+      isWritable: false,
+    },
+  ]
+
+  return new TransactionInstruction({
+    keys,
+    programId: TOKEN_VESTING_PROGRAM_ID,
+    data,
+  });
+}
+
+export function populateWindowIx(
+  userPk: PublicKey,
+  pointer_account: PublicKey,
+  cal_account: PublicKey,
+  dslope_account: PublicKey,
+  firstEpochInEra: number,
+): TransactionInstruction {
+  let buffers = [
+    Buffer.from(Int8Array.from([7]).buffer), //len 1
+    new Numberu16(firstEpochInEra).toBuffer() //len 2
+  ];
+  const data = Buffer.concat(buffers);
+  const keys = [
+    {
+      pubkey: userPk,
+      isSigner: true,
+      isWritable: false,
+    },
+    {
+      pubkey: pointer_account,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: cal_account,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: dslope_account,
+      isSigner: false,
+      isWritable: false,
+    },
+  ]
+
+  return new TransactionInstruction({
+    keys,
+    programId: TOKEN_VESTING_PROGRAM_ID,
+    data,
+  });
+}
+
+export function transferCalendarDataIx(
+  userPk: PublicKey,
+  pointer_account: PublicKey,
+  new_cal_account: PublicKey,
+  new_cal_seed:  Array<Buffer | Uint8Array>,
+  old_cal_account: PublicKey,
+): TransactionInstruction {
+  let buffers = [
+    Buffer.from(Int8Array.from([8]).buffer), //len 1
+    Buffer.concat(new_cal_seed), //len 32
+  ];
+  const data = Buffer.concat(buffers);
+  const keys = [
+    {
+      pubkey: userPk,
+      isSigner: true,
+      isWritable: false,
+    },
+    {
+      pubkey: pointer_account,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: new_cal_account,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: old_cal_account,
+      isSigner: false,
+      isWritable: true,
+    },
+  ]
+
+  let ix = new TransactionInstruction({
+    keys,
+    programId: TOKEN_VESTING_PROGRAM_ID,
+    data,
+  });
+
+  return ix
 }
