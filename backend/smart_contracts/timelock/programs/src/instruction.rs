@@ -6,7 +6,8 @@ use crate::{
 use solana_program::{
     msg,
     program_error::ProgramError,
-    pubkey::Pubkey
+    pubkey::Pubkey,
+    program_pack::Pack
 };
 
 use std::convert::TryInto;
@@ -58,8 +59,6 @@ pub struct Schedule {
     pub amount: u64,
 }
 */
-
-pub const SCHEDULE_SIZE: usize = 16;
 
 #[repr(C)]
 #[derive(Clone, Debug, PartialEq)]
@@ -141,12 +140,35 @@ pub enum VestingInstruction {
       schedules: Vec<VestingSchedule>, 
     },
 
+    //TODO - will the seed actually be this long?
+    CreateCalendarAccount{
+      calendar_account_seed: [u8; 32],
+      account_size: u64
+    },
+
+    CreateWindowAccounts{
+      pointer_account_seed: [u8; 32],
+      calendar_account_seed: [u8; 32],
+      dslope_account_seed: [u8; 32],
+      calendar_size: u64,
+    },
+
+    PopulateWindowAccounts{
+      first_epoch_in_era: u16
+    },    
+    
+    TransferCalendarData{
+      new_calendar_account_seed: [u8; 32],
+    },
+
     // 1. [signer] owner's account
     // 2. [] vesting account
-    TestOnChainVotingPower {
+    TestUserOnChainVotingPower {
       vesting_account_seed: [u8; 32],
-      client_voting_power: f32,
+      client_voting_power:u64,
     },
+
+    TestProtocolOnChainVotingPower {},
 }
 
 impl VestingInstruction {
@@ -195,7 +217,7 @@ impl VestingInstruction {
                     .and_then(|slice| slice.try_into().ok())
                     .map(f32::from_le_bytes)
                     .ok_or(InvalidInstruction)?;
-                let number_of_schedules = rest[100..].len() / SCHEDULE_SIZE;
+                let number_of_schedules = rest[100..].len() / VestingSchedule::LEN;
                 let mut schedules: Vec<VestingSchedule> = Vec::with_capacity(number_of_schedules);
                 let mut offset = 100;
                 for _ in 0..number_of_schedules {
@@ -209,10 +231,16 @@ impl VestingInstruction {
                         .and_then(|slice| slice.try_into().ok())
                         .map(u64::from_le_bytes)
                         .ok_or(InvalidInstruction)?;
-                    offset += SCHEDULE_SIZE;
+                    let creation_epoch = rest
+                      .get(offset + 16..offset + 18)
+                      .and_then(|slice| slice.try_into().ok())
+                      .map(u16::from_le_bytes)
+                      .ok_or(InvalidInstruction)?;
+                    offset += VestingSchedule::LEN;
                     schedules.push(VestingSchedule {
                         release_time,
                         amount,
+                        creation_epoch,
                     })
                 }
                 Self::PopulateVestingAccount {
@@ -242,7 +270,7 @@ impl VestingInstruction {
                   .get(32..64)
                   .and_then(|slice| slice.try_into().ok())
                   .unwrap();
-                let number_of_schedules = rest[64..].len() / SCHEDULE_SIZE;
+                let number_of_schedules = rest[64..].len() / VestingSchedule::LEN;
                 let mut schedules: Vec<VestingSchedule> = Vec::with_capacity(number_of_schedules);
                 let mut offset = 64;
                 for _ in 0..number_of_schedules {
@@ -256,10 +284,16 @@ impl VestingInstruction {
                         .and_then(|slice| slice.try_into().ok())
                         .map(u64::from_le_bytes)
                         .ok_or(InvalidInstruction)?;
-                    offset += SCHEDULE_SIZE;
+                    let creation_epoch = rest
+                        .get(offset + 16..offset + 18)
+                        .and_then(|slice| slice.try_into().ok())
+                        .map(u16::from_le_bytes)
+                        .ok_or(InvalidInstruction)?;
+                    offset += VestingSchedule::LEN;
                     schedules.push(VestingSchedule {
                         release_time,
                         amount,
+                        creation_epoch,
                     })
                 }
                   Self::CreateNewDataAccount {
@@ -283,7 +317,7 @@ impl VestingInstruction {
                 .and_then(|slice| slice.try_into().ok())
                 .map(u64::from_le_bytes)
                 .ok_or(InvalidInstruction)?;
-              let number_of_schedules = rest[72..].len() / SCHEDULE_SIZE;
+              let number_of_schedules = rest[72..].len() / VestingSchedule::LEN;
               let mut schedules: Vec<VestingSchedule> = Vec::with_capacity(number_of_schedules);
               let mut offset = 72;
               for _ in 0..number_of_schedules {
@@ -297,10 +331,16 @@ impl VestingInstruction {
                       .and_then(|slice| slice.try_into().ok())
                       .map(u64::from_le_bytes)
                       .ok_or(InvalidInstruction)?;
-                  offset += SCHEDULE_SIZE;
+                    let creation_epoch = rest
+                      .get(offset + 16..offset + 18)
+                      .and_then(|slice| slice.try_into().ok())
+                      .map(u16::from_le_bytes)
+                      .ok_or(InvalidInstruction)?;
+                  offset += VestingSchedule::LEN;
                   schedules.push(VestingSchedule {
                       release_time,
                       amount,
+                      creation_epoch,
                   })
               }
                 Self::PopulateNewDataAccount {
@@ -310,26 +350,94 @@ impl VestingInstruction {
                   schedules,
               }
             }
-            //test on chain voting power   
+            //create a calendar account
+            5 => {
+              let calendar_account_seed: [u8; 32] = rest
+                .get(..32)
+                .and_then(|slice| slice.try_into().ok())
+                .unwrap();
+              let account_size = rest
+                .get(32..40)
+                .and_then(|slice| slice.try_into().ok())
+                .map(u64::from_le_bytes)
+                .ok_or(InvalidInstruction)?;
+              Self::CreateCalendarAccount{
+                calendar_account_seed,
+                account_size,
+              }              
+            }
+            //create window accounts
+            6 => {
+              let pointer_account_seed: [u8; 32] = rest
+                .get(..32)
+                .and_then(|slice| slice.try_into().ok())
+                .unwrap();
+              let calendar_account_seed: [u8; 32] = rest
+                .get(32..64)
+                .and_then(|slice| slice.try_into().ok())
+                .unwrap();
+              let dslope_account_seed: [u8; 32] = rest
+                .get(64..96)
+                .and_then(|slice| slice.try_into().ok())
+                .unwrap();
+              let calendar_size = rest
+                .get(96..104)
+                .and_then(|slice| slice.try_into().ok())
+                .map(u64::from_le_bytes)
+                .ok_or(InvalidInstruction)?;
+              Self::CreateWindowAccounts{
+                pointer_account_seed,
+                calendar_account_seed,
+                dslope_account_seed,
+                calendar_size,
+              }              
+            }
+            //populate window accounts
+            7 => {
+              let first_epoch_in_era = rest
+                .get(0..2)
+                .and_then(|slice| slice.try_into().ok())
+                .map(u16::from_le_bytes)
+                .ok_or(InvalidInstruction)?;
+              Self::PopulateWindowAccounts{
+                first_epoch_in_era
+              }
+            }
+            //transfer data from an old calendar account to a new one
+            8 => {
+              let new_calendar_account_seed: [u8; 32] = rest
+                .get(..32)
+                .and_then(|slice| slice.try_into().ok())
+                .unwrap();
+              Self::TransferCalendarData{
+                new_calendar_account_seed,
+              } 
+            }
+            //test on chain user voting power   
             23 => {
               let vesting_account_seed: [u8; 32] = rest
                 .get(..32)
                 .and_then(|slice| slice.try_into().ok())
                 .unwrap();
               let client_voting_power = rest
-                .get(32..36)
+                .get(32..40)
                 .and_then(|slice| slice.try_into().ok())
-                .map(f32::from_le_bytes)
+                .map(u64::from_le_bytes)
                 .ok_or(InvalidInstruction)?;
-              Self::TestOnChainVotingPower {
+              Self::TestUserOnChainVotingPower {
                 vesting_account_seed,
                 client_voting_power,
               }
+            }
+            //test on chain protocol voting power   
+            24 => {
+              Self::TestProtocolOnChainVotingPower {}
             }
             _ => {
                 msg!("Unsupported tag");
                 return Err(InvalidInstruction.into());
             }
+
 
         })
     }
@@ -362,6 +470,7 @@ impl VestingInstruction {
                 for s in schedules.iter() {
                     buf.extend_from_slice(&s.release_time.to_le_bytes());
                     buf.extend_from_slice(&s.amount.to_le_bytes());
+                    buf.extend_from_slice(&s.creation_epoch.to_le_bytes());
                 }
             }
             &Self::Unlock { vesting_account_seed } => {
@@ -379,6 +488,7 @@ impl VestingInstruction {
               for s in schedules.iter() {
                   buf.extend_from_slice(&s.release_time.to_le_bytes());
                   buf.extend_from_slice(&s.amount.to_le_bytes());
+                  buf.extend_from_slice(&s.creation_epoch.to_le_bytes());
               }
             }
             Self::PopulateNewDataAccount {
@@ -394,15 +504,51 @@ impl VestingInstruction {
               for s in schedules.iter() {
                   buf.extend_from_slice(&s.release_time.to_le_bytes());
                   buf.extend_from_slice(&s.amount.to_le_bytes());
+                  buf.extend_from_slice(&s.creation_epoch.to_le_bytes());
               }
             }
-            Self::TestOnChainVotingPower{
+            Self::CreateCalendarAccount{
+              calendar_account_seed,
+              account_size
+            } => {
+              buf.push(5);
+              buf.extend_from_slice(calendar_account_seed);
+              buf.extend_from_slice(&account_size.to_le_bytes());
+            }
+            Self::CreateWindowAccounts{
+              pointer_account_seed,
+              calendar_account_seed,
+              dslope_account_seed,
+              calendar_size,
+            } => {
+              buf.push(7);
+              buf.extend_from_slice(pointer_account_seed);
+              buf.extend_from_slice(calendar_account_seed);
+              buf.extend_from_slice(dslope_account_seed);
+              buf.extend_from_slice(&calendar_size.to_le_bytes());
+            }
+            Self::PopulateWindowAccounts{
+              first_epoch_in_era,
+            } => {
+              buf.push(8);
+              buf.extend_from_slice(&first_epoch_in_era.to_le_bytes());
+            }
+            Self::TransferCalendarData{
+              new_calendar_account_seed,
+            } => {
+              buf.push(9);
+              buf.extend_from_slice(new_calendar_account_seed);
+            }
+            Self::TestUserOnChainVotingPower{
               vesting_account_seed,
               client_voting_power,
             } => {
               buf.push(23);
               buf.extend_from_slice(vesting_account_seed);
               buf.extend_from_slice(&client_voting_power.to_le_bytes());
+            }
+            Self::TestProtocolOnChainVotingPower{} => {
+              buf.push(24);
             }
         };
         buf
