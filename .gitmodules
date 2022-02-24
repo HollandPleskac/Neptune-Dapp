@@ -1,0 +1,3 @@
+[submodule "frontend_ui/libs/neptune_dapp_sdk"]
+	path = frontend_ui/libs/neptune_dapp_sdk
+	url = git@github.com:BlockverseFoundation/neptune_dapp_sdk.git

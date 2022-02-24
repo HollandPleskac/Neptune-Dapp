@@ -5,7 +5,7 @@ import NeptuneLogo from 'assets/NeptuneLogo';
 import styles from './bottomDetails.module.scss';
 import { ReactNode } from 'react';
 const BottomDetails = ({ tab }: Props) => {
-  const data: DataProps = [
+  const borrowTab: DataProps = [
     {
       desc: 'Current LTV',
       data: '37.13%',
@@ -23,9 +23,14 @@ const BottomDetails = ({ tab }: Props) => {
       withIcon: true,
     },
     {
+      desc: 'Rate Type',
+      data: 'Stable',
+      classNames: 'pt-6 border-t border-gray-fadedMost',
+      withIcon: true,
+    },
+    {
       desc: 'Borrow Limit',
       data: '2,000',
-      classNames: 'pt-6 border-t border-gray-fadedMost',
       withIcon: true,
     },
     {
@@ -73,9 +78,81 @@ const BottomDetails = ({ tab }: Props) => {
     },
   ];
 
-  const dataToDisplay = tab === 'Borrow' ? data : depositTab;
+  const withdrawTab: DataProps = [
+    {
+      desc: 'Available Withdrawal',
+      data: '500 SOL',
+      withIcon: true,
+      classNames: '',
+    },
+    {
+      desc: 'Deposit APY',
+      data: '5%',
+    },
+    {
+      desc: 'NPT Reward APR',
+      data: '3.44%',
+      withIcon: true,
+      dataWithIcon: true,
+      dataIcon: <NeptuneLogo style={{ width: 16, height: 16 }} />,
+    },
+    {
+      desc: 'Total APY',
+      data: '9.44%',
+      withIcon: true,
+      dataWithIcon: true,
+      dataIcon: <NeptuneLogo style={{ width: 16, height: 16 }} />,
+    },
+  ];
+  const repayTab: DataProps = [
+    {
+      desc: 'Total SOL Borrowed',
+      data: '500 SOL',
+      withIcon: true,
+      classNames: '',
+    },
+    {
+      desc: 'Utilization',
+      data: '50.72% -> 25.36%',
+      withIcon: true,
+      classNames: '',
+    },
+    {
+      desc: 'Borrow APY',
+      data: '-1.01%',
+      withIcon: false,
+      classNames: '',
+    },
+    {
+      desc: 'NPT Reward APR',
+      data: '5%',
+      withIcon: true,
+      dataWithIcon: true,
+      dataIcon: <NeptuneLogo style={{ width: 16, height: 16 }} />,
+    },
+    {
+      desc: 'Total APY',
+      data: '9.44%',
+      withIcon: true,
+      dataWithIcon: true,
+      dataIcon: <NeptuneLogo style={{ width: 16, height: 16 }} />,
+    },
+  ];
+  const mapper: { [key: string]: DataProps } = {
+    Lend: depositTab,
+    Borrow: borrowTab,
+    Withdraw: withdrawTab,
+    Repay: repayTab,
+  };
+  const dataToDisplay = mapper[tab];
+
   return (
-    <div className='bg-dark-primary rounded-lg p-6 mt-16 flex flex-col'>
+    <div
+      className={cx('bg-dark-primary rounded-lg p-6 flex flex-col', {
+        'mt-16': tab === 'Borrow',
+        'mt-6': tab !== 'Borrow',
+      })}
+    >
       {dataToDisplay.map((d, i) => (
         <div
           key={i}

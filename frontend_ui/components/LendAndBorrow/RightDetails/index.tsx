@@ -1,5 +1,10 @@
 import cx from 'classnames';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
+import { WalletModalButton } from '@solana/wallet-adapter-react-ui';
+import { WalletNotConnectedError } from '@solana/wallet-adapter-base';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
+
+import { SolendAction } from '../../../libs/neptune_dapp_sdk/src/classes/action';
 
 import Button from 'components/common/Button';
 import RangeBar from 'components/common/RangeBar';
@@ -13,43 +18,91 @@ import SettingsIcon from 'assets/SettingsIcon';
 import styles from './rightDetails.module.scss';
 
 const RightDetails = () => {
+  const { publicKey, sendTransaction } = useWallet();
+  const { connection } = useConnection();
   const defaultClassNames = 'py-3 px-4 rounded-lg leading-4 font-bold';
   const tabs = ['Lend', 'Borrow', 'Withdraw', 'Repay'];
   const [tab, setTab] = useState(tabs[1]);
+  const [ltv, setLTV] = useState(0);
+  const [inputValue, setInputValue] = useState('');
+
+  const triggerTransaction = useCallback(async () => {
+    if (!publicKey) throw new WalletNotConnectedError();
+    try {
+      const depositAction = await SolendAction.buildDepositTxns(
+        connection,
+        inputValue, //note, amount is in lamports for transactions in SOL
+        'SOL',
+        publicKey,
+        'devnet',
+      );
+      const sig = await depositAction.sendTransactions(sendTransaction);
+      // const signature = await sendTransaction(depositAction, connection);
+      await connection.confirmTransaction(sig, 'processed');
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Transaction error', err);
+    }
+  }, [connection, publicKey, sendTransaction]);
+
+  const onInputChange = (value: string) => {
+    setInputValue(value);
+    setLTV(parseInt(value) / 10);
+  };
+
   return (
-    <div className='w-dashboardRight bg-dark-secondary rounded-2xl p-8'>
-      <div className='flex justify-between items-center'>
-        <div className='flex justify-between rightDetails-top-buttons'>
-          {tabs.map((t, i) => (
-            <button
-              key={i}
-              onClick={() => setTab(t)}
-              className={cx(defaultClassNames, {
-                'bg-dark-primary text-white': tab === t,
-                'text-gray-faded': tab !== t,
-              })}
-            >
-              {t}
+    <div className='w-dashboardRigh'>
+      <div className='bg-dark-secondary rounded-2xl p-8'>
+        <div className='flex justify-between items-center'>
+          <div className='flex justify-between rightDetails-top-buttons'>
+            {tabs.map((t, i) => (
+              <button
+                key={i}
+                onClick={() => setTab(t)}
+                className={cx(defaultClassNames, {
+                  'bg-dark-primary text-white': tab === t,
+                  'text-gray-faded': tab !== t,
+                })}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+          <div className='rightDetails-top-gear flex'>
+            <button>
+              <SettingsIcon />
             </button>
-          ))}
+          </div>
         </div>
-        <div className='rightDetails-top-gear flex'>
-          <button>
-            <SettingsIcon />
-          </button>
-        </div>
+        <hr className={styles['neptune-right-details__hr']} />
+        <WalletDetails />
+        <InputWithPicker
+          placeholder='250'
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+            onInputChange(e.target.value)
+          }
+          inputType='number'
+        />
+        <PercentButtons />
+        {tab === 'Borrow' && <RangeBar indicatorPercent={ltv} />}
+        <BottomDetails tab={tab} />
+        {!publicKey ? (
+          <WalletModalButton
+            className={cx(styles['neptune-right-details__borrow-sol'])}
+          >
+            {tab} SOL
+          </WalletModalButton>
+        ) : (
+          <>
+            <Button
+              text={`${tab} SOL`}
+              color='bg-blue-light'
+              className={'neptune-button__borrow-sol'}
+              onClick={() => triggerTransaction()}
+            />
+          </>
+        )}
       </div>
-      <hr className={styles['neptune-right-details__hr']} />
-      <WalletDetails />
-      <InputWithPicker placeholder='250' />
-      <PercentButtons />
-      <RangeBar indicatorPercent={80} />
-      <BottomDetails tab={tab} />
-      <Button
-        text='Borrow SOL'
-        color='bg-blue-light'
-        className={'neptune-button__borrow-sol'}
-      />
     </div>
   );
 };
