@@ -26,6 +26,9 @@ module.exports = {
         green: {
           normal: '#25B38F',
         },
+        red: {
+          normal: '#ED6564',
+        },
       },
       width: {
         body: '77rem',
@@ -33,12 +36,16 @@ module.exports = {
         dashboardRight: '31.5rem',
         '104px': '6.5rem',
       },
+      height: {
+        marketCard: '13.375rem',
+      },
       padding: {
         '2px': '2px',
       },
       fontSize: {
         '10px': '0.625rem',
         '14px': '0.875rem',
+        '13px': '0.8125rem',
       },
       lineHeight: {
         '10px': '0.625rem',
