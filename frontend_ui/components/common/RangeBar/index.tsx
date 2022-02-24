@@ -47,7 +47,7 @@ const RangeBar = ({ indicatorPercent }: Props) => {
           Liquidation
         </span>
         <div
-          className='absolute left-0 h-2 rounded-tl-xl rounded-bl-xl'
+          className='absolute left-0 h-2 rounded-tl-xl rounded-bl-xl transition-all duration-500'
           style={{
             width: `${indicatorPercent}%`,
             backgroundColor: rangeBgColor(),
