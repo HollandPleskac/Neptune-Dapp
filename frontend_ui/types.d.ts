@@ -5,3 +5,8 @@ type TokenType = {
   totalAmount: string;
   href: string;
 };
+
+type SortInformation = {
+  lastSortedField: string | null;
+  order: string | null;
+};

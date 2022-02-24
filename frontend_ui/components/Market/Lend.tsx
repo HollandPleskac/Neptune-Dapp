@@ -4,11 +4,6 @@ import TokenLabels from './TokenLabels';
 import Token from './Token';
 import sortTokens from 'utils/sortTokens';
 
-type SortInformation = {
-  lastSortedField: string | null;
-  order: string | null;
-};
-
 const Lend = ({ lendTokensInitial }: Props) => {
   const [lendTokens, setLendTokens] = useState<TokenType[]>(lendTokensInitial);
   const [lendSortInfo, setLendSortInfo] = useState<SortInformation>({
