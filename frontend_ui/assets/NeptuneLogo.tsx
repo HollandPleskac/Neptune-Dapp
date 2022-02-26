@@ -25,9 +25,9 @@ const SvgComponent = (props: Props) => (
         width='96'
         height='96'
         filterUnits='userSpaceOnUse'
-        color-interpolation-filters='sRGB'
+        colorInterpolationFilters='sRGB'
       >
-        <feFlood flood-opacity='0' result='BackgroundImageFix' />
+        <feFlood floodOpacity='0' result='BackgroundImageFix' />
         <feColorMatrix
           in='SourceAlpha'
           type='matrix'
@@ -61,8 +61,8 @@ const SvgComponent = (props: Props) => (
         y2='66.3333'
         gradientUnits='userSpaceOnUse'
       >
-        <stop stop-color='#2D91EF' />
-        <stop offset='1' stop-color='#3E54E8' />
+        <stop stopColor='#2D91EF' />
+        <stop offset='1' stopColor='#3E54E8' />
       </linearGradient>
     </defs>
   </svg>
