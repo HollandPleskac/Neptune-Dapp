@@ -5,6 +5,10 @@
     height: 52px;
     font-weight: bold;
     margin-top: 24px;
+
+    &:hover {
+      @apply bg-blue-lighter;
+    }
   }
   &__bg-gray-light-small {
     @apply text-xs;
