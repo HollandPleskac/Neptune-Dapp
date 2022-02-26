@@ -7,7 +7,7 @@ import LineChart from 'components/common/LineChart';
 
 const lineChartDataDashboard = [
   {
-    name: 'Deposit APY',
+    name: 'Lend APY',
     data: [0, 90, 50, 60, 80, 20, 100],
   },
   {
@@ -172,7 +172,7 @@ const BottomDetails = () => {
       <div className='flex justify-between w-full mt-9 items-center'>
         <div className='flex'>
           <span className='mr-4 text-xs leading-3 font-medium text-gray-faded'>
-            Deposit APY
+            Lend APY
           </span>
           <span className='text-xs leading-3 font-medium text-gray-faded'>
             Borrow APY

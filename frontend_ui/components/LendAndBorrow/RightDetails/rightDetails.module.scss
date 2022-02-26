@@ -14,5 +14,13 @@
     @apply justify-center;
     @apply text-center;
     @apply bg-blue-light;
+
+    &:hover {
+      @apply bg-blue-lighter;
+    }
+
+    &:not([disabled]):hover {
+      @apply bg-blue-lighter;
+    }
   }
 }

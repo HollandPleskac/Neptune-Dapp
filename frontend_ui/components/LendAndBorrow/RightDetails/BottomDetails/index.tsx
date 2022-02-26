@@ -38,7 +38,7 @@ const BottomDetails = ({ tab }: Props) => {
       data: '-1.01%',
     },
     {
-      desc: 'NPT Reward APR',
+      desc: 'NEP Reward APR',
       data: '5%',
       withIcon: true,
       dataWithIcon: true,
@@ -52,18 +52,18 @@ const BottomDetails = ({ tab }: Props) => {
 
   const depositTab: DataProps = [
     {
-      desc: 'Deposit Limit',
+      desc: 'Lend Limit',
       data: '4,000,000',
       withIcon: true,
       classNames: '',
     },
     {
-      desc: 'Deposit APY',
+      desc: 'Lend APY',
       data: '5%',
       withIcon: true,
     },
     {
-      desc: 'NPT Reward APR',
+      desc: 'NEP Reward APR',
       data: '3.44%',
       withIcon: true,
       dataWithIcon: true,
@@ -86,11 +86,11 @@ const BottomDetails = ({ tab }: Props) => {
       classNames: '',
     },
     {
-      desc: 'Deposit APY',
+      desc: 'Lend APY',
       data: '5%',
     },
     {
-      desc: 'NPT Reward APR',
+      desc: 'NEP Reward APR',
       data: '3.44%',
       withIcon: true,
       dataWithIcon: true,
@@ -124,7 +124,7 @@ const BottomDetails = ({ tab }: Props) => {
       classNames: '',
     },
     {
-      desc: 'NPT Reward APR',
+      desc: 'NEP Reward APR',
       data: '5%',
       withIcon: true,
       dataWithIcon: true,
@@ -149,8 +149,8 @@ const BottomDetails = ({ tab }: Props) => {
   return (
     <div
       className={cx('bg-dark-primary rounded-lg p-6 flex flex-col', {
-        'mt-16': tab === 'Borrow',
-        'mt-6': tab !== 'Borrow',
+        'mt-16': ['Borrow', 'Repay'].includes(tab),
+        'mt-6': !['Borrow', 'Repay'].includes(tab),
       })}
     >
       {dataToDisplay.map((d, i) => (

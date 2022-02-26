@@ -14,7 +14,7 @@ import BottomDetails from './BottomDetails';
 import PercentButtons from './PercentButtons';
 import InputWithPicker from './InputWithPicker';
 
-import SettingsIcon from 'assets/SettingsIcon';
+// import SettingsIcon from 'assets/SettingsIcon';
 import styles from './rightDetails.module.scss';
 
 const RightDetails = () => {
@@ -47,7 +47,8 @@ const RightDetails = () => {
 
   const onInputChange = (value: string) => {
     setInputValue(value);
-    setLTV(parseInt(value) / 10);
+    const ltvVal = parseInt(value) / 10;
+    setLTV(ltvVal > 100 ? 100 : ltvVal);
   };
 
   return (
@@ -60,7 +61,7 @@ const RightDetails = () => {
                 key={i}
                 onClick={() => setTab(t)}
                 className={cx(defaultClassNames, {
-                  'bg-dark-primary text-white': tab === t,
+                  'bg-blue-light text-white': tab === t,
                   'text-gray-faded': tab !== t,
                 })}
               >
@@ -68,23 +69,26 @@ const RightDetails = () => {
               </button>
             ))}
           </div>
-          <div className='rightDetails-top-gear flex'>
+          {/* remove gear icon for now */}
+          {/* <div className='rightDetails-top-gear flex'>
             <button>
               <SettingsIcon />
             </button>
-          </div>
+          </div> */}
         </div>
         <hr className={styles['neptune-right-details__hr']} />
         <WalletDetails />
         <InputWithPicker
-          placeholder='250'
+          placeholder='0'
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
             onInputChange(e.target.value)
           }
           inputType='number'
         />
         <PercentButtons />
-        {tab === 'Borrow' && <RangeBar indicatorPercent={ltv} />}
+        {(tab === 'Borrow' || tab === 'Repay') && (
+          <RangeBar indicatorPercent={ltv} />
+        )}
         <BottomDetails tab={tab} />
         {!publicKey ? (
           <WalletModalButton

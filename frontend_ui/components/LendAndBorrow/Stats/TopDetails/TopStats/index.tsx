@@ -6,12 +6,12 @@ import InfoIcon from 'assets/InfoIcon';
 const TopStats = () => {
   const detailsWithSmallHeading = [
     {
-      heading: 'Reserves Size',
-      detail: '$4,912,138',
+      heading: 'Reserve Factor',
+      detail: '20%',
     },
     {
       heading: 'Utilization Rate',
-      detail: '29.64%',
+      detail: '42.13%',
     },
     {
       heading: 'Used as Collateral',
