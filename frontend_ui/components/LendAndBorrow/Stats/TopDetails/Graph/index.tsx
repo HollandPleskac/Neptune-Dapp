@@ -15,7 +15,7 @@ const Graph = () => {
         top: 0,
         left: 0,
         blur: 3,
-        color: ['#2D91EF', '#fff'],
+        color: ['#2D91EF', '#EF2D8A'],
         opacity: 0.5,
       },
     },

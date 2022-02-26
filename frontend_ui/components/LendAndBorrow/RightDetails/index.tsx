@@ -51,7 +51,7 @@ const RightDetails = () => {
   };
 
   return (
-    <div className='w-dashboardRigh'>
+    <div className='w-dashboardRight'>
       <div className='bg-dark-secondary rounded-2xl p-8'>
         <div className='flex justify-between items-center'>
           <div className='flex justify-between rightDetails-top-buttons'>
