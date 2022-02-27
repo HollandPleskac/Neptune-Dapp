@@ -5,6 +5,7 @@ import { WalletNotConnectedError } from '@solana/wallet-adapter-base';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 
 import { SolendAction } from '../../../libs/neptune_dapp_sdk/src/classes/action';
+// import { triggerTransaction } from 'utils/triggerTransaction';
 
 import Button from 'components/common/Button';
 import RangeBar from 'components/common/RangeBar';
@@ -103,6 +104,14 @@ const RightDetails = () => {
               color='bg-blue-light'
               className={'neptune-button__borrow-sol'}
               onClick={() => triggerTransaction()}
+              // onClick={() =>
+              //   triggerTransaction({
+              //     inputValue,
+              //     publicKey,
+              //     connection,
+              //     sendTransaction,
+              //   })
+              // }
             />
           </>
         )}

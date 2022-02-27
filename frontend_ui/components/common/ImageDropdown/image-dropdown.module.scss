@@ -39,7 +39,6 @@
   background: #fff;
   margin: auto;
   margin-top: 0.8rem;
-  padding: 0.8rem 1rem;
   border: 1px solid #ddd;
   border-radius: 0.25rem;
   box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1);
@@ -49,7 +48,7 @@
   will-change: transform;
   text-align: left;
   position: absolute;
-  width: fit-content;
+  // width: fit-content;
   left: 0;
   right: 0;
   margin-left: auto;
@@ -68,6 +67,7 @@
     cursor: pointer;
     @apply flex;
     @apply mb-2;
+    @apply w-full;
 
     &:last-of-type {
       @apply mb-0;
