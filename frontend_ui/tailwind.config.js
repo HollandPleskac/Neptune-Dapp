@@ -40,6 +40,9 @@ module.exports = {
       height: {
         marketCard: '13.375rem',
       },
+      margin: {
+        '10px': '0.625rem',
+      },
       padding: {
         '2px': '2px',
       },

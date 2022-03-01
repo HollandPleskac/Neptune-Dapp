@@ -4,10 +4,7 @@ import {
   TransactionSignature,
   Transaction,
 } from '@solana/web3.js';
-import {
-  SendTransactionOptions,
-  WalletNotConnectedError,
-} from '@solana/wallet-adapter-base';
+import { SendTransactionOptions } from '@solana/wallet-adapter-base';
 
 import { SolendAction } from '../libs/neptune_dapp_sdk/src/classes/action';
 
@@ -26,7 +23,9 @@ export const triggerTransaction = async ({
   connection,
   sendTransaction,
 }: Props) => {
-  if (!publicKey) throw new WalletNotConnectedError();
+  if (!publicKey) {
+    return;
+  }
   try {
     const depositAction = await SolendAction.buildDepositTxns(
       connection,
@@ -36,7 +35,6 @@ export const triggerTransaction = async ({
       'devnet',
     );
     const sig = await depositAction.sendTransactions(sendTransaction);
-    // const signature = await sendTransaction(depositAction, connection);
     await connection.confirmTransaction(sig, 'processed');
   } catch (err) {
     // eslint-disable-next-line no-console
@@ -44,12 +42,9 @@ export const triggerTransaction = async ({
   }
 };
 
-//   triggerTransaction();
-// };
-
 type Props = {
   inputValue: string;
-  publicKey: PublicKey;
+  publicKey: PublicKey | null;
   connection: Connection;
   sendTransaction: (
     txn: Transaction,

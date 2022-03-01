@@ -1,8 +1,12 @@
 import cx from 'classnames';
+import { useWallet } from '@solana/wallet-adapter-react';
+
 import More from 'assets/More';
 import WhiteLogo from 'assets/WhiteLogo';
 
 const Navbar = () => {
+  const { publicKey, disconnect, wallet } = useWallet();
+  // const { connection } = useConnection();
   const links = [
     {
       name: 'Dashboard',
@@ -34,6 +38,12 @@ const Navbar = () => {
       icon: <More />,
     },
   ];
+  // console.log(2, wallet);
+  const pubKey = publicKey?.toString();
+  const splitPubKey = `${pubKey?.substring(0, 4)} ... ${pubKey?.substring(
+    pubKey?.length - 5,
+    pubKey?.length - 1,
+  )}`;
   return (
     <nav className='flex justify-between text-white items-center mt-6 mb-14'>
       <WhiteLogo />
@@ -45,7 +55,23 @@ const Navbar = () => {
           </li>
         ))}
       </ul>
-      <p>Wallet</p>
+      <div>
+        {publicKey ? (
+          <div
+            onClick={() => disconnect()}
+            className='flex items-center cursor-pointer border border-blue-light rounded-lg py-4 px-6'
+          >
+            <img
+              src={wallet?.adapter?.icon}
+              alt='Wallet'
+              className='mr-10px w-4 h-4'
+            />
+            {splitPubKey}
+          </div>
+        ) : (
+          <span>Connect to Wallet</span>
+        )}
+      </div>
     </nav>
   );
 };
