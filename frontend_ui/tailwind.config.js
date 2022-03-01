@@ -19,6 +19,7 @@ module.exports = {
           lighter: '#7691ff',
         },
         gray: {
+          primary: '#3E485C',
           light: '#353639',
           faded: 'rgba(255, 255, 255, 0.65)',
           fadedMore: 'rgba(255, 255, 255, 0.2)',
@@ -42,6 +43,8 @@ module.exports = {
       },
       margin: {
         '10px': '0.625rem',
+        '14px': '0.875rem',
+        '18px': '1.125rem',
       },
       padding: {
         '2px': '2px',

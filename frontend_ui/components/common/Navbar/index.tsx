@@ -1,12 +1,16 @@
 import cx from 'classnames';
 import { useWallet } from '@solana/wallet-adapter-react';
+import { WalletModalButton } from '@solana/wallet-adapter-react-ui';
 
 import More from 'assets/More';
 import WhiteLogo from 'assets/WhiteLogo';
 
+import WalletDropdown from 'components/WalletDropdown';
+
+import styles from './navbar.module.scss';
+
 const Navbar = () => {
   const { publicKey, disconnect, wallet } = useWallet();
-  // const { connection } = useConnection();
   const links = [
     {
       name: 'Dashboard',
@@ -33,12 +37,11 @@ const Navbar = () => {
       link: '/',
     },
     {
-      name: '...',
       link: '/',
       icon: <More />,
+      classNames: 'flex items-center',
     },
   ];
-  // console.log(2, wallet);
   const pubKey = publicKey?.toString();
   const splitPubKey = `${pubKey?.substring(0, 4)} ... ${pubKey?.substring(
     pubKey?.length - 5,
@@ -49,7 +52,10 @@ const Navbar = () => {
       <WhiteLogo />
       <ul className='flex justify-between'>
         {links.map((link, i) => (
-          <li key={i} className={cx('mr-6 font-bold')}>
+          <li
+            key={i}
+            className={cx('mr-6 font-bold cursor-pointer', link.classNames)}
+          >
             {link.name}
             {link.icon && link.icon}
           </li>
@@ -57,19 +63,17 @@ const Navbar = () => {
       </ul>
       <div>
         {publicKey ? (
-          <div
-            onClick={() => disconnect()}
-            className='flex items-center cursor-pointer border border-blue-light rounded-lg py-4 px-6'
-          >
-            <img
-              src={wallet?.adapter?.icon}
-              alt='Wallet'
-              className='mr-10px w-4 h-4'
-            />
-            {splitPubKey}
-          </div>
+          <WalletDropdown
+            walletIcon={wallet?.adapter?.icon}
+            pubKey={splitPubKey}
+            disconnect={disconnect}
+          />
         ) : (
-          <span>Connect to Wallet</span>
+          <WalletModalButton
+            className={styles['neptune-navbar__connect-wallet']}
+          >
+            Connect to Wallet
+          </WalletModalButton>
         )}
       </div>
     </nav>

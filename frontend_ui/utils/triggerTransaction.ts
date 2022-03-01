@@ -8,15 +8,6 @@ import { SendTransactionOptions } from '@solana/wallet-adapter-base';
 
 import { SolendAction } from '../libs/neptune_dapp_sdk/src/classes/action';
 
-// const useTriggerTransaction = ({
-//   inputValue,
-//   publicKey,
-//   connection,
-//   sendTransaction,
-// }: Props) => {
-//   // const { publicKey, sendTransaction } = useWallet();
-//   // const { connection } = useConnection();
-
 export const triggerTransaction = async ({
   inputValue,
   publicKey,
