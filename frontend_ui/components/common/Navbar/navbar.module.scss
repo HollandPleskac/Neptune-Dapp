@@ -1,0 +1,19 @@
+.neptune-navbar {
+  &__connect-wallet {
+    width: 100%;
+    border-radius: 8px;
+    height: 52px;
+    font-weight: bold;
+    @apply justify-center;
+    @apply text-center;
+    @apply bg-blue-light;
+
+    &:hover {
+      @apply bg-blue-lighter;
+    }
+
+    &:not([disabled]):hover {
+      @apply bg-blue-lighter;
+    }
+  }
+}

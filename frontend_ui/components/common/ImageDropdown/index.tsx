@@ -43,7 +43,7 @@ const ImageDropdown = () => {
             id='menu-item-1'
             onClick={() => handleClick(opt)}
           >
-            <span>
+            <span className='hover:bg-gray-300 p-2'>
               {opt.icon} {opt.text}
             </span>
           </span>

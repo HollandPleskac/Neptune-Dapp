@@ -7,7 +7,7 @@
   border: 1px solid #ddd;
   border-radius: 0.2rem;
   font-size: 1.5rem;
-  color: #000;
+  // color: #000;
   font-weight: 300;
   cursor: pointer;
   position: relative;
@@ -36,10 +36,10 @@
 }
 
 .demo-menu {
-  background: #fff;
+  @apply bg-gray-primary;
+  @apply text-white;
   margin: auto;
-  margin-top: 0.8rem;
-  border: 1px solid #ddd;
+  margin-top: 4.688rem;
   border-radius: 0.25rem;
   box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1);
   opacity: 0;
@@ -48,12 +48,12 @@
   will-change: transform;
   text-align: left;
   position: absolute;
-  // width: fit-content;
-  left: 0;
-  right: 0;
   margin-left: auto;
   margin-right: auto;
   z-index: 2;
+  width: 300px;
+  right: 0;
+  left: unset;
 
   &:global(.visible) {
     transform: translateY(-0.3rem);
@@ -63,11 +63,7 @@
   }
 
   :global(span) {
-    color: black;
     cursor: pointer;
-    @apply flex;
-    @apply mb-2;
-    @apply w-full;
 
     &:last-of-type {
       @apply mb-0;
@@ -75,9 +71,8 @@
   }
 
   :global(svg) {
-    @apply w-8;
-    @apply h-8;
-    @apply mr-1;
+    @apply w-full;
+    @apply h-full;
   }
 
   :global(a) {

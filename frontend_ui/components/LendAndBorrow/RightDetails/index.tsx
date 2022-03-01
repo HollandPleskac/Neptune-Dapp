@@ -1,10 +1,9 @@
 import cx from 'classnames';
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { WalletModalButton } from '@solana/wallet-adapter-react-ui';
-import { WalletNotConnectedError } from '@solana/wallet-adapter-base';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 
-import { SolendAction } from '../../../libs/neptune_dapp_sdk/src/classes/action';
+import { triggerTransaction } from 'utils/triggerTransaction';
 
 import Button from 'components/common/Button';
 import RangeBar from 'components/common/RangeBar';
@@ -25,25 +24,6 @@ const RightDetails = () => {
   const [tab, setTab] = useState(tabs[1]);
   const [ltv, setLTV] = useState(0);
   const [inputValue, setInputValue] = useState('');
-
-  const triggerTransaction = useCallback(async () => {
-    if (!publicKey) throw new WalletNotConnectedError();
-    try {
-      const depositAction = await SolendAction.buildDepositTxns(
-        connection,
-        inputValue, //note, amount is in lamports for transactions in SOL
-        'SOL',
-        publicKey,
-        'devnet',
-      );
-      const sig = await depositAction.sendTransactions(sendTransaction);
-      // const signature = await sendTransaction(depositAction, connection);
-      await connection.confirmTransaction(sig, 'processed');
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error('Transaction error', err);
-    }
-  }, [connection, publicKey, sendTransaction]);
 
   const onInputChange = (value: string) => {
     setInputValue(value);
@@ -94,7 +74,7 @@ const RightDetails = () => {
           <WalletModalButton
             className={cx(styles['neptune-right-details__borrow-sol'])}
           >
-            {tab} SOL
+            Connect to Wallet
           </WalletModalButton>
         ) : (
           <>
@@ -102,7 +82,14 @@ const RightDetails = () => {
               text={`${tab} SOL`}
               color='bg-blue-light'
               className={'neptune-button__borrow-sol'}
-              onClick={() => triggerTransaction()}
+              onClick={() =>
+                triggerTransaction({
+                  inputValue,
+                  publicKey,
+                  connection,
+                  sendTransaction,
+                })
+              }
             />
           </>
         )}
