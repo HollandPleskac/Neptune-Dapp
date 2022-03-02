@@ -1,5 +1,6 @@
 import BasicCardText from './BasicCardText';
 import InfoIcon from '../../assets/InfoIcon';
+import NeptuneLogo16 from 'assets/NeptuneLogo16';
 
 const Card3: React.FC = () => {
   return (
@@ -19,7 +20,7 @@ const Card3: React.FC = () => {
           <InfoIcon text-white />
         </div>
         <div className='flex items-center'>
-          <div className='w-4 h-4 bg-blue-600 rounded-full mr-2'></div>
+          <NeptuneLogo16 className='w-4 h-4 mr-2' />
           <h4 className='text-2xl font-bold'>110.25</h4>
           <h5 className='ml-2 text-blue-light text-sm font-bold'>Claim</h5>
         </div>
