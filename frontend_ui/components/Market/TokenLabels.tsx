@@ -1,6 +1,6 @@
 import Label from './Label';
 
-const TokenLabels = ({ isLend, sortFn }: Props) => {
+const TokenLabels = ({ isLend, sortFn, sortInfo }: Props) => {
   const labels = [
     {
       name: 'Token',
@@ -33,6 +33,7 @@ const TokenLabels = ({ isLend, sortFn }: Props) => {
           widthClasses={label.widthClasses}
           field={label.field}
           sortFn={sortFn}
+          sortInfo={sortInfo}
         />
       ))}
     </div>
@@ -42,6 +43,7 @@ const TokenLabels = ({ isLend, sortFn }: Props) => {
 type Props = {
   isLend: boolean;
   sortFn: (field: string) => void;
+  sortInfo: SortInformation;
 };
 
 export default TokenLabels;

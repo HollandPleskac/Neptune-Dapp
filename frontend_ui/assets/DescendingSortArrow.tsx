@@ -1,4 +1,5 @@
 type Props = {
+  color: string;
   [key: string]: any;
 };
 const SvgComponent = (props: Props) => (
@@ -10,7 +11,7 @@ const SvgComponent = (props: Props) => (
     xmlns='http://www.w3.org/2000/svg'
     {...props}
   >
-    <path d='M4 4L8 0H0L4 4Z' fill='white' />
+    <path d='M4 4L8 0H0L4 4Z' className={props.color} />
   </svg>
 );
 

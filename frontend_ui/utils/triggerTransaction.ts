@@ -8,12 +8,11 @@
 
 // import { SolendAction } from '../libs/neptune_dapp_sdk/src/classes/action';
 
-export const triggerTransaction = async ({
-  // inputValue,
-  // publicKey,
-  // connection,
-  // sendTransaction,
-}: Props) => {
+export const triggerTransaction = async ({}: // inputValue,
+// publicKey,
+// connection,
+// sendTransaction,
+Props) => {
   // if (!publicKey) {
   //   return;
   // }

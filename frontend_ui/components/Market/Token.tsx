@@ -1,6 +1,5 @@
 import NeptuneLogo16 from 'assets/NeptuneLogo16';
 import SolLogo32 from 'assets/SolLogo32';
-
 import React from 'react';
 import Link from 'next/link';
 

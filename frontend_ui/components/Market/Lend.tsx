@@ -27,7 +27,7 @@ const Lend = ({ lendTokensInitial }: Props) => {
         <h5 className='mr-1 text-base font-bold'>Lend</h5>
         <InfoIcon text-white />
       </div>
-      <TokenLabels isLend={true} sortFn={sortLendHandler} />
+      <TokenLabels isLend={true} sortFn={sortLendHandler} sortInfo={lendSortInfo} />
       {lendTokens.map((info, i) => {
         return (
           <Token
